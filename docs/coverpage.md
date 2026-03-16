@@ -6,5 +6,5 @@
 
 Place bounties. Claim on kill. Browse in-game. Get notified on Discord.
 
-[Get Started](./#/)
+[Get Started](banner.html)
 [GitHub](https://github.com/swag617/SwagBounties)

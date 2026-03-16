@@ -1,6 +1,6 @@
 <!-- sidebar.md -->
 
-- [Home](/)
+- [Home](banner.html ':ignore')
 
 - **Getting Started**
   - [Installation](getting-started/installation.md)
