@@ -80,6 +80,20 @@
         hook.doneEach(function() {
           fixLayout();
 
+          // Home route — replace content with banner.html iframe
+          var hash = window.location.hash;
+          if (hash === '#/' || hash === '' || hash === '#') {
+            var section = document.querySelector('.markdown-section');
+            if (section && !section.querySelector('iframe.banner-frame')) {
+              section.style.padding = '0';
+              section.style.maxWidth = 'none';
+              section.innerHTML = '<iframe class="banner-frame" src="banner.html" style="width:100%;height:calc(100vh - 56px);border:none;display:block;"></iframe>';
+            }
+          } else {
+            var section = document.querySelector('.markdown-section');
+            if (section) { section.style.padding = ''; section.style.maxWidth = ''; }
+          }
+
           // Custom collapse — each section independent, no accordion
           var items = document.querySelectorAll('.sidebar-nav > ul > li');
           items.forEach(function(li) {
