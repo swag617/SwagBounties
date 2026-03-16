@@ -81,7 +81,11 @@ public final class GUIListener implements Listener {
     @EventHandler
     public void onInventoryClose(InventoryCloseEvent event) {
         String title = event.getView().getTitle();
-        if (!title.startsWith(TITLE_MAIN)) {
+
+        // Clean up playerPage tracking when either the main list or the detail view is closed.
+        // This covers the case where a player closes the detail GUI directly instead of using
+        // the back button, preventing an unbounded map entry leak in BountiesGUI.
+        if (!title.startsWith(TITLE_MAIN) && !title.startsWith(TITLE_DETAIL)) {
             return;
         }
 

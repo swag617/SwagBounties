@@ -13,20 +13,34 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
 
-import java.text.SimpleDateFormat;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Date;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 public final class BountyCommand implements CommandExecutor, TabCompleter {
 
     private static final String PREFIX = ChatColor.RED + "[SwagBounties] " + ChatColor.RESET;
-    private static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("yyyy-MM-dd HH:mm");
+    private static final DateTimeFormatter DATE_FORMAT =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(ZoneId.systemDefault());
 
     private final SwagBounties plugin;
     private final BountyManager bountyManager;
     private final Economy economy;
+
+    /**
+     * Tracks the epoch-millisecond timestamp of the last bounty action (set/remove/add)
+     * per player UUID. Checked against the configured cooldown on each mutating command.
+     * Held in memory only — resets on server restart (intentional).
+     */
+    private final HashMap<UUID, Long> cooldowns = new HashMap<>();
 
     public BountyCommand(SwagBounties plugin) {
         this.plugin = plugin;
@@ -47,8 +61,10 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
 
         switch (args[0].toLowerCase()) {
             case "set"    -> handleSet(sender, args);
+            case "add"    -> handleAdd(sender, args);
             case "remove" -> handleRemove(sender, args);
             case "list"   -> handleList(sender, args);
+            case "top"    -> handleTop(sender);
             case "help"   -> sendHelp(sender);
             default       -> {
                 sender.sendMessage(PREFIX + ChatColor.RED + "Unknown sub-command. Use "
@@ -94,6 +110,9 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
             return;
         }
 
+        // Cooldown check
+        if (isOnCooldown(player)) return;
+
         // Parse amount
         double amount;
         try {
@@ -104,7 +123,7 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
             return;
         }
 
-        if (amount <= 0) {
+        if (!Double.isFinite(amount) || amount <= 0) {
             player.sendMessage(PREFIX + ChatColor.RED + "The bounty amount must be a positive number.");
             return;
         }
@@ -146,6 +165,7 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
         bountyManager.addBounty(new Bounty(target.getUniqueId(), player.getUniqueId(), actualReward, isAnon));
         bountyManager.saveToDisk();
         SwagBounties.getInstance().rebuildBountiesGUI();
+        stampCooldown(player);
 
         // Broadcast
         String broadcastKey = isAnon ? "set-message-anon" : "set-message";
@@ -197,6 +217,9 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
             return;
         }
 
+        // Cooldown check — only blocks if the player is actually attempting a mutation
+        if (isOnCooldown(player)) return;
+
         // Resolve target — allow offline targets (by name lookup through online list first)
         Player target = Bukkit.getPlayerExact(args[1]);
         if (target == null) {
@@ -228,6 +251,7 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
                     economy.depositPlayer(player, refund);
                     bountyManager.saveToDisk();
                     SwagBounties.getInstance().rebuildBountiesGUI();
+                    stampCooldown(player);
                     player.sendMessage(PREFIX + ChatColor.GREEN + "Your bounty on "
                             + ChatColor.YELLOW + targetName
                             + ChatColor.GREEN + " has been removed. "
@@ -271,6 +295,7 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
             economy.depositPlayer(player, refund);
             bountyManager.saveToDisk();
             SwagBounties.getInstance().rebuildBountiesGUI();
+            stampCooldown(player);
             player.sendMessage(PREFIX + ChatColor.GREEN + "Your bounty on "
                     + ChatColor.YELLOW + targetDisplayName
                     + ChatColor.GREEN + " has been removed. "
@@ -280,6 +305,174 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
             // Race condition — the bounty was removed between our read and our write
             player.sendMessage(PREFIX + ChatColor.RED
                     + "Failed to remove the bounty (concurrent modification). Please try again.");
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // /bounty add <player> <amount> — stack onto an existing bounty
+    // -------------------------------------------------------------------------
+
+    private void handleAdd(CommandSender sender, String[] args) {
+        if (!(sender instanceof Player player)) {
+            sender.sendMessage(PREFIX + ChatColor.RED + "Only players can add to bounties.");
+            return;
+        }
+
+        if (args.length < 3) {
+            sender.sendMessage(PREFIX + ChatColor.RED + "Usage: /bounty add <player> <amount>");
+            return;
+        }
+
+        // Resolve target
+        org.bukkit.OfflinePlayer target;
+        Player onlineTarget = Bukkit.getPlayerExact(args[1]);
+        if (onlineTarget != null) {
+            target = onlineTarget;
+        } else {
+            @SuppressWarnings("deprecation")
+            org.bukkit.OfflinePlayer op = Bukkit.getOfflinePlayer(args[1]);
+            if (!op.hasPlayedBefore() && !op.isOnline()) {
+                player.sendMessage(PREFIX + ChatColor.RED + "Player " + ChatColor.YELLOW + args[1]
+                        + ChatColor.RED + " has never joined this server.");
+                return;
+            }
+            target = op;
+        }
+
+        if (target.getUniqueId().equals(player.getUniqueId())) {
+            player.sendMessage(PREFIX + ChatColor.RED + "You cannot place a bounty on yourself.");
+            return;
+        }
+
+        // Cooldown check
+        if (isOnCooldown(player)) return;
+
+        // Find existing bounty by this creator on this target
+        Bounty existing = null;
+        for (Bounty b : bountyManager.getBounties(target.getUniqueId())) {
+            if (b.getCreatorUUID().equals(player.getUniqueId())) {
+                existing = b;
+                break;
+            }
+        }
+
+        if (existing == null) {
+            player.sendMessage(PREFIX + ChatColor.RED + "You have no existing bounty on "
+                    + ChatColor.YELLOW + (target.getName() != null ? target.getName() : args[1])
+                    + ChatColor.RED + ". Use " + ChatColor.YELLOW + "/bounty set"
+                    + ChatColor.RED + " to place a new bounty.");
+            return;
+        }
+
+        // Parse additional amount
+        double amount;
+        try {
+            amount = Double.parseDouble(args[2]);
+        } catch (NumberFormatException e) {
+            player.sendMessage(PREFIX + ChatColor.RED + "Invalid amount: " + ChatColor.YELLOW + args[2]
+                    + ChatColor.RED + ". Please enter a positive number.");
+            return;
+        }
+
+        if (!Double.isFinite(amount) || amount <= 0) {
+            player.sendMessage(PREFIX + ChatColor.RED + "The amount to add must be a positive number.");
+            return;
+        }
+
+        // Config validation — min applies to the additional amount; max applies to the resulting total
+        double minBounty = plugin.getConfig().getDouble("min-bounty", 100.0);
+        double maxBounty = plugin.getConfig().getDouble("max-bounty", 0.0);
+
+        if (amount < minBounty) {
+            player.sendMessage(PREFIX + ChatColor.RED + "The minimum amount to add is "
+                    + ChatColor.GREEN + String.format("$%.2f", minBounty) + ChatColor.RED + ".");
+            return;
+        }
+
+        // Apply placement tax to the additional amount only
+        double placementTax = plugin.getConfig().getDouble("placement-tax", 5.0);
+        double taxedAmount = amount * (placementTax / 100.0);
+        double additionalReward = amount - taxedAmount;
+
+        String targetName = target.getName() != null ? target.getName() : args[1];
+        double newTotalReward = existing.getReward() + additionalReward;
+
+        if (maxBounty > 0 && newTotalReward > maxBounty) {
+            player.sendMessage(PREFIX + ChatColor.RED + "Adding this amount would exceed the maximum bounty of "
+                    + ChatColor.GREEN + String.format("$%.2f", maxBounty) + ChatColor.RED + ".");
+            return;
+        }
+
+        // Economy check
+        if (!economy.has(player, amount)) {
+            player.sendMessage(PREFIX + ChatColor.RED + "You do not have enough money. You need "
+                    + ChatColor.GREEN + String.format("$%.2f", amount) + ChatColor.RED + ".");
+            return;
+        }
+
+        // Replace: remove old bounty (no refund — player is keeping it active) then add
+        // updated bounty preserving the original placedAt timestamp and anonymous flag.
+        boolean removed = bountyManager.removeBounty(target.getUniqueId(), player.getUniqueId());
+        if (!removed) {
+            player.sendMessage(PREFIX + ChatColor.RED
+                    + "Failed to update the bounty (concurrent modification). Please try again.");
+            return;
+        }
+
+        economy.withdrawPlayer(player, amount);
+        bountyManager.addBounty(new Bounty(
+                target.getUniqueId(),
+                player.getUniqueId(),
+                newTotalReward,
+                existing.isAnonymous(),
+                existing.getPlacedAt()));
+        bountyManager.saveToDisk();
+        SwagBounties.getInstance().rebuildBountiesGUI();
+        stampCooldown(player);
+
+        player.sendMessage(PREFIX + ChatColor.GREEN + "Added " + ChatColor.YELLOW
+                + String.format("$%.2f", additionalReward)
+                + ChatColor.GREEN + " (after tax) to your bounty on "
+                + ChatColor.YELLOW + targetName
+                + ChatColor.GREEN + ". New total reward: "
+                + ChatColor.YELLOW + String.format("$%.2f", newTotalReward)
+                + ChatColor.GREEN + " (tax deducted: "
+                + ChatColor.RED + String.format("$%.2f", taxedAmount)
+                + ChatColor.GREEN + ").");
+    }
+
+    // -------------------------------------------------------------------------
+    // /bounty top — show the top 5 most-wanted players
+    // -------------------------------------------------------------------------
+
+    private void handleTop(CommandSender sender) {
+        List<Bounty> all = bountyManager.getAllBounties();
+
+        if (all.isEmpty()) {
+            sender.sendMessage(PREFIX + ChatColor.GRAY + "There are no active bounties.");
+            return;
+        }
+
+        // Group by targetUUID and sum rewards
+        Map<UUID, Double> totals = new LinkedHashMap<>();
+        for (Bounty b : all) {
+            totals.merge(b.getTargetUUID(), b.getReward(), Double::sum);
+        }
+
+        // Sort descending by total reward, take top 5
+        List<Map.Entry<UUID, Double>> sorted = new ArrayList<>(totals.entrySet());
+        sorted.sort((a, b) -> Double.compare(b.getValue(), a.getValue()));
+
+        int limit = Math.min(5, sorted.size());
+
+        sender.sendMessage(ChatColor.GOLD + "" + ChatColor.BOLD + "--- Top Bounties ---");
+        for (int i = 0; i < limit; i++) {
+            Map.Entry<UUID, Double> entry = sorted.get(i);
+            String name = resolvePlayerName(entry.getKey());
+            sender.sendMessage(ChatColor.YELLOW + "#" + (i + 1)
+                    + " " + ChatColor.WHITE + name
+                    + ChatColor.GRAY + " - " + ChatColor.GREEN
+                    + String.format("$%.2f", entry.getValue()));
         }
     }
 
@@ -337,7 +530,7 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
             String creatorDisplay = b.isAnonymous()
                     ? ChatColor.GRAY + "Anonymous"
                     : ChatColor.YELLOW + resolvePlayerName(b.getCreatorUUID());
-            String dateStr = DATE_FORMAT.format(new Date(b.getPlacedAt()));
+            String dateStr = DATE_FORMAT.format(Instant.ofEpochMilli(b.getPlacedAt()));
             sender.sendMessage(ChatColor.GRAY + "#" + (i + 1)
                     + ChatColor.WHITE + " Reward: " + ChatColor.GREEN + String.format("$%.2f", b.getReward())
                     + ChatColor.WHITE + " | By: " + creatorDisplay
@@ -354,11 +547,15 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
     private void sendHelp(CommandSender sender) {
         sender.sendMessage(ChatColor.RED + "=== SwagBounties Help ===");
         sender.sendMessage(ChatColor.YELLOW + "/bounty set <player> <amount> [--anon]"
-                + ChatColor.GRAY + " - Place a bounty on a player.");
+                + ChatColor.GRAY + " - Place a new bounty on a player.");
+        sender.sendMessage(ChatColor.YELLOW + "/bounty add <player> <amount>"
+                + ChatColor.GRAY + " - Add to an existing bounty you placed on a player.");
         sender.sendMessage(ChatColor.YELLOW + "/bounty remove <player>"
                 + ChatColor.GRAY + " - Remove your bounty on a player and receive a refund.");
         sender.sendMessage(ChatColor.YELLOW + "/bounty list [player]"
                 + ChatColor.GRAY + " - List bounties on yourself or another player.");
+        sender.sendMessage(ChatColor.YELLOW + "/bounty top"
+                + ChatColor.GRAY + " - Show the top 5 most-wanted players.");
         sender.sendMessage(ChatColor.YELLOW + "/bounty help"
                 + ChatColor.GRAY + " - Show this help message.");
     }
@@ -370,13 +567,13 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         if (args.length == 1) {
-            return filterStartsWith(List.of("set", "remove", "list", "help"), args[0]);
+            return filterStartsWith(List.of("set", "add", "remove", "list", "top", "help"), args[0]);
         }
 
         String sub = args[0].toLowerCase();
 
         if (args.length == 2) {
-            if (sub.equals("set") || sub.equals("remove") || sub.equals("list")) {
+            if (sub.equals("set") || sub.equals("add") || sub.equals("remove") || sub.equals("list")) {
                 List<String> names = new ArrayList<>();
                 for (Player p : Bukkit.getOnlinePlayers()) {
                     names.add(p.getName());
@@ -385,7 +582,7 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
             }
         }
 
-        if (args.length == 3 && sub.equals("set")) {
+        if (args.length == 3 && (sub.equals("set") || sub.equals("add"))) {
             return List.of("<amount>");
         }
 
@@ -399,6 +596,45 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
     // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
+
+    /**
+     * Returns {@code true} and notifies the player if they are still within their
+     * bounty-action cooldown window.  Returns {@code false} (and does nothing) if
+     * the cooldown is disabled or has expired.
+     */
+    private boolean isOnCooldown(Player player) {
+        int cooldownSeconds = plugin.getConfig().getInt("bounty-cooldown-seconds", 60);
+        if (cooldownSeconds <= 0) {
+            return false;
+        }
+        Long last = cooldowns.get(player.getUniqueId());
+        if (last == null) {
+            return false;
+        }
+        long elapsed = (System.currentTimeMillis() - last) / 1000L;
+        if (elapsed < cooldownSeconds) {
+            long remaining = cooldownSeconds - elapsed;
+            player.sendMessage(PREFIX + ChatColor.RED + "You must wait "
+                    + ChatColor.YELLOW + remaining + ChatColor.RED
+                    + " more second" + (remaining == 1 ? "" : "s")
+                    + " before placing or removing a bounty.");
+            return true;
+        }
+        // Cooldown has expired — prune the entry to avoid unbounded map growth
+        cooldowns.remove(player.getUniqueId());
+        return false;
+    }
+
+    /**
+     * Records the current time as the player's last bounty action timestamp.
+     * Call this immediately after a successful mutating bounty operation.
+     */
+    private void stampCooldown(Player player) {
+        int cooldownSeconds = plugin.getConfig().getInt("bounty-cooldown-seconds", 60);
+        if (cooldownSeconds > 0) {
+            cooldowns.put(player.getUniqueId(), System.currentTimeMillis());
+        }
+    }
 
     /**
      * Returns a filtered list of {@code candidates} whose entries start with {@code input}

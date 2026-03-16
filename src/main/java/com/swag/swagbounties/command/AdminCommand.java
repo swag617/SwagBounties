@@ -13,10 +13,11 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
 
-import java.text.SimpleDateFormat;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Date;
 import java.util.List;
 import java.util.UUID;
 
@@ -25,9 +26,13 @@ public final class AdminCommand implements CommandExecutor, TabCompleter {
     private static final String PREFIX =
             ChatColor.DARK_RED + "[SwagBounties Admin] " + ChatColor.RESET;
 
-    private static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("yyyy-MM-dd HH:mm");
+    private static final DateTimeFormatter DATE_FORMAT =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(ZoneId.systemDefault());
 
     private static final String PERMISSION = "swagbounties.admin";
+
+    /** UUID used for admin-placed bounties — refunding to this UUID is meaningless. */
+    private static final UUID SERVER_UUID = new UUID(0, 0);
 
     // Keys whose type is double, with their valid ranges.
     // Range stored as double[]{min, max}; Double.MAX_VALUE means no upper bound.
@@ -41,7 +46,8 @@ public final class AdminCommand implements CommandExecutor, TabCompleter {
 
     // Keys whose type is int, with their valid ranges.
     private static final List<String> INT_KEYS = List.of(
-            "bounty-expiry-days"
+            "bounty-expiry-days",
+            "bounty-cooldown-seconds"
     );
 
     // Keys whose type is String (no special validation beyond the join).
@@ -170,7 +176,9 @@ public final class AdminCommand implements CommandExecutor, TabCompleter {
         int removed = 0;
         for (Bounty b : bounties) {
             if (bm.removeBounty(target.getUniqueId(), b.getCreatorUUID())) {
-                eco.depositPlayer(Bukkit.getOfflinePlayer(b.getCreatorUUID()), b.getReward());
+                if (!b.getCreatorUUID().equals(SERVER_UUID)) {
+                    eco.depositPlayer(Bukkit.getOfflinePlayer(b.getCreatorUUID()), b.getReward());
+                }
                 removed++;
             }
         }
@@ -214,7 +222,9 @@ public final class AdminCommand implements CommandExecutor, TabCompleter {
 
         for (Bounty b : bounties) {
             if (bm.removeBounty(target.getUniqueId(), b.getCreatorUUID())) {
-                eco.depositPlayer(Bukkit.getOfflinePlayer(b.getCreatorUUID()), b.getReward());
+                if (!b.getCreatorUUID().equals(SERVER_UUID)) {
+                    eco.depositPlayer(Bukkit.getOfflinePlayer(b.getCreatorUUID()), b.getReward());
+                }
             }
         }
 
@@ -245,7 +255,9 @@ public final class AdminCommand implements CommandExecutor, TabCompleter {
         int count = 0;
         for (Bounty b : all) {
             if (bm.removeBounty(b.getTargetUUID(), b.getCreatorUUID())) {
-                eco.depositPlayer(Bukkit.getOfflinePlayer(b.getCreatorUUID()), b.getReward());
+                if (!b.getCreatorUUID().equals(SERVER_UUID)) {
+                    eco.depositPlayer(Bukkit.getOfflinePlayer(b.getCreatorUUID()), b.getReward());
+                }
                 count++;
             }
         }
@@ -283,7 +295,7 @@ public final class AdminCommand implements CommandExecutor, TabCompleter {
             return;
         }
 
-        if (amount <= 0) {
+        if (!Double.isFinite(amount) || amount <= 0) {
             sender.sendMessage(PREFIX + ChatColor.RED + "Amount must be a positive number.");
             return;
         }
@@ -348,7 +360,7 @@ public final class AdminCommand implements CommandExecutor, TabCompleter {
             Bounty b = bounties.get(i);
             String creatorName = resolvePlayerName(b.getCreatorUUID());
             String anonTag = b.isAnonymous() ? ChatColor.GRAY + " [anon]" : "";
-            String date = DATE_FORMAT.format(new Date(b.getPlacedAt()));
+            String date = DATE_FORMAT.format(Instant.ofEpochMilli(b.getPlacedAt()));
 
             sender.sendMessage(ChatColor.GRAY + "#" + (i + 1)
                     + ChatColor.WHITE + " Reward: " + ChatColor.GREEN + String.format("$%.2f", b.getReward())
@@ -555,6 +567,8 @@ public final class AdminCommand implements CommandExecutor, TabCompleter {
         return switch (key) {
             case "bounty-expiry-days" ->
                     value < 0 ? "bounty-expiry-days must be 0 or greater (0 = never)." : null;
+            case "bounty-cooldown-seconds" ->
+                    value < 0 ? "bounty-cooldown-seconds must be 0 or greater (0 = disabled)." : null;
             default -> null;
         };
     }

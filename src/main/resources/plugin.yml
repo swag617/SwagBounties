@@ -9,13 +9,13 @@ softdepend: [PlaceholderAPI]
 commands:
   bounty:
     description: Bounty commands
-    usage: /bounty <set|remove|list|help> [args]
+    usage: /bounty <set|add|remove|list|top|help> [args]
   bounties:
     description: Open the bounties GUI
     usage: /bounties
   bountyadmin:
     description: SwagBounties admin commands
-    usage: /bountyadmin <config> [args]
+    usage: /bountyadmin <config|remove|clear|clearall|give|inspect|reload> [args]
     permission: swagbounties.admin
 permissions:
   swagbounties.admin:

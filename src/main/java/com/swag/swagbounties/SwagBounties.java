@@ -83,7 +83,11 @@ public final class SwagBounties extends JavaPlugin {
     @Override
     public void onDisable() {
         if (bountyManager != null) {
-            bountyManager.saveToDisk();
+            try {
+                bountyManager.saveToDisk();
+            } catch (RuntimeException e) {
+                getLogger().severe("Failed to save bounties.yml on shutdown: " + e.getMessage());
+            }
         }
         getLogger().info("SwagBounties disabled.");
     }

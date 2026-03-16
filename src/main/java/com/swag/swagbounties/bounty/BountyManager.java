@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.logging.Logger;
 
 /**
  * Thread-safe in-memory store for all active bounties with YAML persistence.
@@ -23,6 +24,8 @@ import java.util.concurrent.ConcurrentHashMap;
  * on {@code this} to ensure a consistent view of the entire map during bulk I/O.</p>
  */
 public class BountyManager {
+
+    private static final Logger LOGGER = Logger.getLogger("SwagBounties");
 
     // Key: target UUID -> list of bounties placed on that target
     private final ConcurrentHashMap<UUID, List<Bounty>> bounties = new ConcurrentHashMap<>();
@@ -41,8 +44,10 @@ public class BountyManager {
      * Adds a bounty. If the target has no existing bounties a new list is created atomically.
      */
     public void addBounty(Bounty bounty) {
-        bounties.computeIfAbsent(bounty.getTargetUUID(), k -> new ArrayList<>())
-                .add(bounty);
+        List<Bounty> list = bounties.computeIfAbsent(bounty.getTargetUUID(), k -> new ArrayList<>());
+        synchronized (list) {
+            list.add(bounty);
+        }
     }
 
     /**
@@ -144,7 +149,7 @@ public class BountyManager {
             try {
                 targetUUID = UUID.fromString(targetKey);
             } catch (IllegalArgumentException e) {
-                System.err.println("[BountyManager] Skipping malformed target UUID in bounties.yml: " + targetKey);
+                LOGGER.warning("Skipping malformed target UUID in bounties.yml: " + targetKey);
                 continue;
             }
 
@@ -168,7 +173,7 @@ public class BountyManager {
                 try {
                     creatorUUID = UUID.fromString(creatorStr);
                 } catch (IllegalArgumentException e) {
-                    System.err.println("[BountyManager] Skipping malformed creator UUID in bounties.yml: " + creatorStr);
+                    LOGGER.warning("Skipping malformed creator UUID in bounties.yml: " + creatorStr);
                     continue;
                 }
 

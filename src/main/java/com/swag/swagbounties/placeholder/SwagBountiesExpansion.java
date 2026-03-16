@@ -92,8 +92,8 @@ public final class SwagBountiesExpansion extends PlaceholderExpansion {
                 return top == null ? "None" : top.name;
             }
             case "top_hunter" -> {
-                // ClaimTracker not yet implemented — placeholder stub.
-                return "Coming soon";
+                // ClaimTracker not yet implemented — return null so PAPI leaves the placeholder literal.
+                return null;
             }
             case "total_bounties" -> {
                 return String.valueOf(all.size());

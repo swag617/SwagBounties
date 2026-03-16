@@ -28,6 +28,16 @@ bounty-expiry-days: 7
 |---|---|---|
 | `bounty-expiry-days` | `7` | Days until an unclaimed bounty expires (0 = never) |
 
+## Cooldown
+
+```yaml
+bounty-cooldown-seconds: 60
+```
+
+| Key | Default | Description |
+|---|---|---|
+| `bounty-cooldown-seconds` | `60` | Seconds a player must wait between placing or removing bounties (0 = disabled) |
+
 ## Messages
 
 ```yaml

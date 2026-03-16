@@ -12,12 +12,13 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.PlayerDeathEvent;
+import org.bukkit.event.player.PlayerJoinEvent;
 
 import java.net.InetAddress;
 import java.util.List;
 
 /**
- * Pays out active bounties to the killer when a player dies.
+ * Handles bounty-related game events: death payouts and login notifications.
  */
 public class BountyListener implements Listener {
 
@@ -26,6 +27,30 @@ public class BountyListener implements Listener {
     public BountyListener(SwagBounties plugin) {
         this.plugin = plugin;
     }
+
+    // -------------------------------------------------------------------------
+    // Login notification
+    // -------------------------------------------------------------------------
+
+    @EventHandler
+    public void onPlayerJoin(PlayerJoinEvent event) {
+        Player player = event.getPlayer();
+        BountyManager bountyManager = plugin.getBountyManager();
+        double total = bountyManager.getTotalReward(player.getUniqueId());
+        if (total <= 0) {
+            return;
+        }
+        int count = bountyManager.getBounties(player.getUniqueId()).size();
+        player.sendMessage(ChatColor.translateAlternateColorCodes('&',
+                "&c[SwagBounties] &eWarning: &cYou have &e" + count
+                        + "&c active " + (count == 1 ? "bounty" : "bounties")
+                        + " totalling &e$" + String.format("%.2f", total)
+                        + "&c on your head!"));
+    }
+
+    // -------------------------------------------------------------------------
+    // Death payout
+    // -------------------------------------------------------------------------
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onPlayerDeath(PlayerDeathEvent event) {

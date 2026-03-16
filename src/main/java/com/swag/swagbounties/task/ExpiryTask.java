@@ -12,6 +12,7 @@ import org.bukkit.scheduler.BukkitRunnable;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * Scans active bounties every 5 minutes and expires any older than
@@ -19,6 +20,9 @@ import java.util.List;
  * Set {@code bounty-expiry-days: 0} to disable expiry entirely.
  */
 public final class ExpiryTask extends BukkitRunnable {
+
+    /** UUID used for admin-placed bounties — refunding to this UUID is meaningless. */
+    private static final UUID SERVER_UUID = new UUID(0, 0);
 
     private final SwagBounties plugin;
 
@@ -56,16 +60,19 @@ public final class ExpiryTask extends BukkitRunnable {
             }
 
             double refund = bounty.getReward() * (1.0 - expiryRefundTax / 100.0);
+            String targetName = resolveTargetName(bounty);
 
-            OfflinePlayer creator = Bukkit.getOfflinePlayer(bounty.getCreatorUUID());
-            economy.depositPlayer(creator, refund);
+            // Admin-placed bounties use SERVER_UUID as creator; skip economy deposit for those.
+            if (!bounty.getCreatorUUID().equals(SERVER_UUID)) {
+                OfflinePlayer creator = Bukkit.getOfflinePlayer(bounty.getCreatorUUID());
+                economy.depositPlayer(creator, refund);
 
-            Player onlineCreator = Bukkit.getPlayer(bounty.getCreatorUUID());
-            if (onlineCreator != null) {
-                String targetName = resolveTargetName(bounty);
-                onlineCreator.sendMessage(ChatColor.translateAlternateColorCodes('&',
-                        "&c[SwagBounties] &fYour bounty on &e" + targetName
-                        + " &fhas expired. &a$" + String.format("%.2f", refund) + " &frefunded."));
+                Player onlineCreator = Bukkit.getPlayer(bounty.getCreatorUUID());
+                if (onlineCreator != null) {
+                    onlineCreator.sendMessage(ChatColor.translateAlternateColorCodes('&',
+                            "&c[SwagBounties] &fYour bounty on &e" + targetName
+                            + " &fhas expired. &a$" + String.format("%.2f", refund) + " &frefunded."));
+                }
             }
 
             if (!webhookUrl.isEmpty() && refund >= threshold) {
@@ -73,7 +80,7 @@ public final class ExpiryTask extends BukkitRunnable {
                         .getString("discord-expire-message",
                                 "⏰ A **$%amount%** bounty on **%target%** has expired and was refunded.")
                         .replace("%amount%", String.format("%.2f", refund))
-                        .replace("%target%", resolveTargetName(bounty));
+                        .replace("%target%", targetName);
                 DiscordWebhook.sendAsync(webhookUrl, discordMsg);
             }
 

@@ -36,3 +36,6 @@ discord-claim-message: "⚔️ **%killer%** claimed a **$%amount%** bounty on **
 
 # Discord message when a bounty expires
 discord-expire-message: "⏰ A **$%amount%** bounty on **%target%** has expired and was refunded."
+
+# Cooldown in seconds between bounty placements/removals per player (0 = disabled)
+bounty-cooldown-seconds: 60

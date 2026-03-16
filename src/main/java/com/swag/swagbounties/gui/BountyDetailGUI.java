@@ -10,9 +10,10 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 
-import java.text.SimpleDateFormat;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
 import java.util.UUID;
 
@@ -24,7 +25,8 @@ import java.util.UUID;
  */
 public final class BountyDetailGUI {
 
-    private static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("yyyy-MM-dd HH:mm");
+    private static final DateTimeFormatter DATE_FORMAT =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(ZoneId.systemDefault());
     private static final int CONTENT_SLOTS = 45;
     private static final int INV_SIZE      = CONTENT_SLOTS + 9;
     private static final int SLOT_BACK     = CONTENT_SLOTS + 4;
@@ -86,7 +88,7 @@ public final class BountyDetailGUI {
                 creatorDisplay = ChatColor.YELLOW + creatorName;
             }
 
-            String formattedDate = DATE_FORMAT.format(new Date(bounty.getPlacedAt()));
+            String formattedDate = DATE_FORMAT.format(Instant.ofEpochMilli(bounty.getPlacedAt()));
 
             List<String> lore = new ArrayList<>();
             lore.add(ChatColor.GRAY + "By: " + creatorDisplay);

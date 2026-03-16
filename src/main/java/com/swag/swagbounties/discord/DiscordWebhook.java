@@ -80,7 +80,10 @@ public final class DiscordWebhook {
     private static byte[] buildPayload(String content) {
         String escaped = content
                 .replace("\\", "\\\\")
-                .replace("\"", "\\\"");
+                .replace("\"", "\\\"")
+                .replace("\n", "\\n")
+                .replace("\r", "\\r")
+                .replace("\t", "\\t");
         String json = "{\"content\": \"" + escaped + "\"}";
         return json.getBytes(StandardCharsets.UTF_8);
     }

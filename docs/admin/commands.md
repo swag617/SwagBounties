@@ -24,6 +24,7 @@ All keys from `config.yml` can be read and written in-game:
 ```
 /bountyadmin config get min-bounty
 /bountyadmin config set min-bounty 50
+/bountyadmin config set bounty-cooldown-seconds 30
 /bountyadmin config set discord-webhook-url https://discord.com/api/webhooks/...
 ```
 
