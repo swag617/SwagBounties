@@ -1,0 +1,38 @@
+# Minimum bounty amount a player can set
+min-bounty: 100.0
+
+# Maximum bounty amount a player can set (0 = no limit)
+max-bounty: 0.0
+
+# Tax percentage taken from the bounty on placement (0-100)
+placement-tax: 5.0
+
+# Tax percentage taken from the bounty on expiry refund (0-100)
+expiry-refund-tax: 10.0
+
+# Days until an unclaimed bounty expires and is refunded (0 = never)
+bounty-expiry-days: 7
+
+# Broadcast message when a bounty is set (supports %target%, %creator%, %amount%)
+set-message: "&c[SwagBounties] &e%creator% &fhas placed a &a$%amount% &fbounty on &e%target%&f!"
+
+# Broadcast message when a bounty is claimed (supports %target%, %killer%, %amount%)
+claim-message: "&c[SwagBounties] &e%killer% &fhas claimed a &a$%amount% &fbounty on &e%target%&f!"
+
+# Anonymous set message (creator hidden)
+set-message-anon: "&c[SwagBounties] &fAn anonymous player has placed a &a$%amount% &fbounty on &e%target%&f!"
+
+# Discord webhook URL for bounty events (leave empty to disable)
+discord-webhook-url: ""
+
+# Minimum bounty reward to trigger a Discord notification (0 = always notify)
+discord-notify-threshold: 500.0
+
+# Discord message when a high-value bounty is set
+discord-set-message: "💰 **%creator%** placed a **$%amount%** bounty on **%target%**!"
+
+# Discord message when a bounty is claimed
+discord-claim-message: "⚔️ **%killer%** claimed a **$%amount%** bounty on **%target%**!"
+
+# Discord message when a bounty expires
+discord-expire-message: "⏰ A **$%amount%** bounty on **%target%** has expired and was refunded."

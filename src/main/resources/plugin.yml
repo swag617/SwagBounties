@@ -1,0 +1,23 @@
+name: SwagBounties
+version: ${project.version}
+main: com.swag.swagbounties.SwagBounties
+api-version: '1.21'
+authors: [SwagTeam]
+description: Player bounty system with GUI, economy integration, and Discord webhooks
+depend: [Vault]
+softdepend: [PlaceholderAPI]
+commands:
+  bounty:
+    description: Bounty commands
+    usage: /bounty <set|remove|list|help> [args]
+  bounties:
+    description: Open the bounties GUI
+    usage: /bounties
+  bountyadmin:
+    description: SwagBounties admin commands
+    usage: /bountyadmin <config> [args]
+    permission: swagbounties.admin
+permissions:
+  swagbounties.admin:
+    description: Access to SwagBounties admin commands
+    default: op
