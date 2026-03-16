@@ -22,16 +22,16 @@ Place bounties on players, claim them on kill, browse them in a paginated GUI, a
 
 ## ✦ Features
 
-- **Place bounties** — set a reward on any online or offline player with an optional anonymous flag
-- **Claim on kill** — bounty reward is automatically paid to the killer via Vault on player death
-- **Paginated GUI** — `/bounties` opens a 54-slot chest GUI with player skulls, click to see individual bounty details
-- **Bounty expiry** — unclaimed bounties expire after a configurable number of days and refund the creator (with tax)
-- **Placement tax** — configurable tax taken on placement and on expiry refund
-- **Anonymous bounties** — creators can hide their identity with `--anon`
-- **Discord webhooks** — high-value bounty set, claim, and expiry events posted to a Discord channel
-- **PlaceholderAPI** — exposes `%swagbounties_*%` placeholders for scoreboards and other plugins
-- **Admin commands** — force-remove bounties, wipe all bounties, place free admin bounties, inspect with anonymity unmasked, and edit config live in-game
-- **Same-IP exploit prevention** — players cannot claim bounties on accounts sharing their IP
+- **Place bounties** on any online or offline player with an optional anonymous flag
+- **Claim on kill** — reward paid to the killer via Vault on player death
+- **Paginated GUI** — `/bounties` opens a skull-based chest GUI with per-target bounty details
+- **Bounty expiry** — unclaimed bounties expire after a configurable number of days and refund the creator
+- **Placement tax** — configurable tax on placement and expiry refunds
+- **Anonymous bounties** — hide your identity with `--anon`
+- **Discord webhooks** — bounty set, claim, and expiry events posted to a Discord channel
+- **PlaceholderAPI** — `%swagbounties_*%` placeholders for scoreboards and other plugins
+- **Admin commands** — force-remove, wipe, inspect, and edit config live in-game
+- **Same-IP exploit prevention**
 
 ---
 
@@ -43,7 +43,7 @@ Place bounties on players, claim them on kill, browse them in a paginated GUI, a
 4. Edit `config.yml` to set your desired min/max bounty, taxes, expiry days, and (optionally) a Discord webhook URL
 5. Start the server
 
-> **Requirements:** Spigot / Paper 1.21.4 — Java 21 — Vault + an economy plugin
+> **Requirements:** Spigot / Paper 1.21.4, Java 21, Vault + an economy plugin
 > **Optional:** PlaceholderAPI for `%swagbounties_*%` placeholders
 
 ---
