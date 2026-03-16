@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SwagBounties Docs</title>
+  <meta name="description" content="SwagBounties — Full-featured player bounty system for Spigot 1.21.4">
+  <link rel="icon" href="https://swag617.github.io/assets/favicon.ico">
+
+  <!-- Docsify dark theme -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/docsify-themeable@0/dist/css/theme-defaults.min.css">
+
+  <style>
+    /* ── Brand tokens ───────────────────────────────────── */
+    :root {
+      --theme-color: #764ba2;
+      --theme-color-secondary: #667eea;
+      --base-background-color: #0d0d0d;
+      --base-color: #e8e8e8;
+      --sidebar-background: #111111;
+      --sidebar-color: #cccccc;
+      --sidebar-width: 260px;
+      --link-color: #a78bfa;
+      --link-color--hover: #c4b5fd;
+      --heading-color: #ffffff;
+      --blockquote-border-color: #764ba2;
+      --blockquote-background: #1a1a2e;
+      --code-background: #1e1e1e;
+      --code-theme-background: #1e1e1e;
+      --table-row-odd-background: #1a1a1a;
+      --table-cell-border-color: #2a2a2a;
+      --notice-tip-border-color: #764ba2;
+      --border-radius-s: 6px;
+      --border-radius-m: 10px;
+    }
+
+    /* ── Base ───────────────────────────────────────────── */
+    body { background: var(--base-background-color); color: var(--base-color); font-family: 'Segoe UI', system-ui, sans-serif; }
+
+    /* ── Port-nav ───────────────────────────────────────── */
+    .port-nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 999;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 24px; height: 48px;
+      background: rgba(13,13,13,0.92); backdrop-filter: blur(10px);
+      border-bottom: 1px solid rgba(118,75,162,0.3);
+    }
+    .port-nav a { color: #cccccc; text-decoration: none; font-size: 13px; transition: color .2s; }
+    .port-nav a:hover { color: #a78bfa; }
+    .port-nav .brand { font-weight: 700; font-size: 15px; background: linear-gradient(90deg,#667eea,#764ba2); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .port-nav .links { display: flex; gap: 20px; }
+
+    /* ── Sidebar offset for nav ─────────────────────────── */
+    body { padding-top: 48px; }
+    .sidebar { top: 48px !important; height: calc(100vh - 48px) !important; }
+    .content { padding-top: 10px; }
+
+    /* ── Sidebar styling ────────────────────────────────── */
+    .sidebar { background: var(--sidebar-background) !important; border-right: 1px solid rgba(118,75,162,0.2) !important; }
+    .sidebar-nav a { color: var(--sidebar-color); transition: color .2s; }
+    .sidebar-nav a:hover, .sidebar-nav a.active { color: #a78bfa !important; }
+    .sidebar-nav ul li { list-style: none; }
+
+    /* ── Section collapse ───────────────────────────────── */
+    .sidebar-nav > ul > li > p,
+    .sidebar-nav > ul > li > strong {
+      cursor: pointer; user-select: none; color: #888;
+      font-size: 11px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.08em; margin: 18px 0 6px 0;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .sidebar-nav > ul > li > p::before,
+    .sidebar-nav > ul > li > strong::before { content: '▾'; transition: transform .2s; display: inline-block; }
+    .sidebar-nav > ul > li.collapsed > p::before,
+    .sidebar-nav > ul > li.collapsed > strong::before { transform: rotate(-90deg); }
+    .sidebar-nav > ul > li > ul { transition: max-height .25s ease, opacity .2s; overflow: hidden; max-height: 600px; opacity: 1; }
+    .sidebar-nav > ul > li.collapsed > ul { max-height: 0 !important; opacity: 0; }
+
+    /* ── Sidebar footer ─────────────────────────────────── */
+    .sidebar-footer {
+      position: absolute; bottom: 0; left: 0; right: 0;
+      padding: 14px 16px; border-top: 1px solid rgba(118,75,162,0.2);
+      background: var(--sidebar-background); display: flex; flex-wrap: wrap; gap: 8px;
+    }
+    .sidebar-footer a {
+      font-size: 11px; padding: 4px 10px; border-radius: 20px;
+      background: rgba(118,75,162,0.15); color: #a78bfa;
+      text-decoration: none; border: 1px solid rgba(118,75,162,0.3);
+      transition: background .2s, color .2s;
+    }
+    .sidebar-footer a:hover { background: rgba(118,75,162,0.35); color: #c4b5fd; }
+
+    /* ── Main content ───────────────────────────────────── */
+    .markdown-section { max-width: 860px; padding: 40px 48px; }
+    .markdown-section h1 { background: linear-gradient(135deg,#667eea,#764ba2); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-size: 2.2rem; margin-bottom: 8px; }
+    .markdown-section h2 { color: #a78bfa; border-bottom: 1px solid rgba(118,75,162,0.3); padding-bottom: 6px; }
+    .markdown-section h3 { color: #c4b5fd; }
+    .markdown-section code { background: #1e1e1e; color: #e2b97e; border-radius: 4px; padding: 2px 6px; font-size: 0.87em; }
+    .markdown-section pre { background: #1e1e1e !important; border-radius: 10px; border: 1px solid rgba(118,75,162,0.2); }
+    .markdown-section blockquote { border-left: 3px solid #764ba2; background: #1a1a2e; padding: 14px 20px; border-radius: 0 8px 8px 0; }
+    .markdown-section table thead tr { background: linear-gradient(90deg,rgba(102,126,234,0.2),rgba(118,75,162,0.2)); }
+    .markdown-section table th { color: #a78bfa; }
+    .markdown-section a { color: #a78bfa; }
+    .markdown-section a:hover { color: #c4b5fd; }
+
+    /* ── Cover page ─────────────────────────────────────── */
+    section.cover { background: linear-gradient(135deg,#0d0d0d 0%,#1a1a2e 50%,#0d0d0d 100%) !important; }
+    section.cover .cover-main { padding-top: 60px; }
+    section.cover h1 { background: linear-gradient(135deg,#667eea,#764ba2); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-size: 3.5rem; }
+    section.cover p { color: #cccccc; font-size: 1.1rem; }
+    section.cover .cover-main > p:last-child a {
+      background: linear-gradient(135deg,#667eea,#764ba2); color: #fff;
+      border-radius: 30px; padding: 12px 32px; margin: 6px;
+      font-weight: 600; text-decoration: none; transition: opacity .2s;
+    }
+    section.cover .cover-main > p:last-child a:last-child {
+      background: transparent; border: 2px solid #764ba2; color: #a78bfa;
+    }
+    section.cover .cover-main > p:last-child a:hover { opacity: .85; }
+
+    /* ── Scrollbar ──────────────────────────────────────── */
+    ::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-track { background: #111; } ::-webkit-scrollbar-thumb { background: #764ba2; border-radius: 3px; }
+
+    /* ── Page transition ────────────────────────────────── */
+    #page-overlay { position:fixed;inset:0;background:rgba(118,75,162,.18);opacity:0;pointer-events:none;z-index:9999;transition:opacity .25s; }
+    #page-overlay.show { opacity:1; }
+  </style>
+</head>
+<body>
+
+<div id="page-overlay"></div>
+
+<!-- Portfolio nav -->
+<nav class="port-nav">
+  <a class="brand" href="https://swag617.github.io/">✦ Swag617</a>
+  <div class="links">
+    <a href="https://swag617.github.io/">Portfolio</a>
+    <a href="https://github.com/swag617/SwagBounties">GitHub</a>
+    <a href="https://github.com/swag617/SwagBounties/releases">Releases</a>
+  </div>
+</nav>
+
+<div id="app"></div>
+
+<!-- Sidebar footer injected after load -->
+<script>
+  window.$docsify = {
+    name: '✦ SwagBounties',
+    repo: 'https://github.com/swag617/SwagBounties',
+    loadSidebar: 'sidebar.md',
+    loadNavbar: false,
+    coverpage: 'coverpage.md',
+    onlyCover: false,
+    autoHeader: true,
+    subMaxLevel: 3,
+    search: { placeholder: 'Search docs...', noData: 'No results.', depth: 6 },
+    pagination: { previousText: '← Previous', nextText: 'Next →', crossChapter: true },
+    'copy-code': { buttonText: 'Copy', errorText: 'Error', successText: 'Copied' },
+    plugins: [
+      function(hook) {
+        hook.doneEach(function() {
+          // inject sidebar footer
+          var sb = document.querySelector('.sidebar-nav');
+          if (sb && !document.querySelector('.sidebar-footer')) {
+            var footer = document.createElement('div');
+            footer.className = 'sidebar-footer';
+            footer.innerHTML =
+              '<a href="https://github.com/swag617/SwagBounties/issues" target="_blank">🐛 Issues</a>' +
+              '<a href="https://github.com/swag617/SwagBounties/releases" target="_blank">📦 Releases</a>' +
+              '<a href="https://github.com/swag617/SwagBounties" target="_blank">⭐ GitHub</a>';
+            var sidebar = document.querySelector('.sidebar');
+            if (sidebar) sidebar.appendChild(footer);
+          }
+          // section collapse
+          var topItems = document.querySelectorAll('.sidebar-nav > ul > li');
+          topItems.forEach(function(li) {
+            var heading = li.querySelector('p, strong');
+            var sub = li.querySelector('ul');
+            if (heading && sub) {
+              heading.addEventListener('click', function() {
+                li.classList.toggle('collapsed');
+              });
+            }
+          });
+        });
+        // page transition
+        hook.beforeEach(function(content) {
+          var ov = document.getElementById('page-overlay');
+          if (ov) { ov.classList.add('show'); setTimeout(function(){ ov.classList.remove('show'); }, 250); }
+          return content;
+        });
+      }
+    ]
+  };
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/docsify@4/lib/docsify.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/docsify@4/lib/plugins/search.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/docsify-pagination/dist/docsify-pagination.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/docsify-copy-code@2/dist/docsify-copy-code.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1/components/prism-java.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1/components/prism-yaml.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1/components/prism-bash.min.js"></script>
+</body>
+</html>
