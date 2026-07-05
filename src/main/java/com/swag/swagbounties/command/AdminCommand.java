@@ -3,6 +3,7 @@ package com.swag.swagbounties.command;
 import com.swag.swagbounties.SwagBounties;
 import com.swag.swagbounties.bounty.Bounty;
 import com.swag.swagbounties.bounty.BountyManager;
+import com.swag.swagbounties.bounty.ClaimTracker;
 // MIGRATED: Vault economy replaced by SwagAPI IEconomyService
 // import net.milkbowl.vault.economy.Economy;
 import org.bukkit.Bukkit;
@@ -103,6 +104,7 @@ public final class AdminCommand implements CommandExecutor, TabCompleter {
             case "clearall" -> handleClearAll(sender);
             case "give"     -> handleGive(sender, args);
             case "inspect"  -> handleInspect(sender, args);
+            case "history"  -> handleHistory(sender, args);
             case "reload"   -> handleReset(sender);
             default         -> sendHelp(sender);
         }
@@ -392,6 +394,45 @@ public final class AdminCommand implements CommandExecutor, TabCompleter {
     }
 
     // -------------------------------------------------------------------------
+    // /bountyadmin history [limit]
+    // Shows the most recent bounty claims server-wide (default 10).
+    // -------------------------------------------------------------------------
+
+    private void handleHistory(CommandSender sender, String[] args) {
+        int limit = 10;
+        if (args.length >= 2) {
+            try {
+                limit = Integer.parseInt(args[1]);
+            } catch (NumberFormatException e) {
+                sender.sendMessage(PREFIX + ChatColor.RED + "Invalid number: " + ChatColor.YELLOW + args[1] + ChatColor.RED + ".");
+                return;
+            }
+            if (limit <= 0) {
+                sender.sendMessage(PREFIX + ChatColor.RED + "Limit must be a positive number.");
+                return;
+            }
+        }
+
+        List<ClaimTracker.Claim> claims = plugin.getClaimTracker().getRecentHistory(limit);
+        if (claims.isEmpty()) {
+            sender.sendMessage(PREFIX + ChatColor.YELLOW + "No bounties have been claimed yet.");
+            return;
+        }
+
+        sender.sendMessage(ChatColor.DARK_RED + "--- Recent Bounty Claims (" + claims.size() + ") ---");
+        for (ClaimTracker.Claim claim : claims) {
+            String hunterName = resolvePlayerName(claim.hunterUUID());
+            String targetName = resolvePlayerName(claim.targetUUID());
+            String date = DATE_FORMAT.format(Instant.ofEpochMilli(claim.claimedAt()));
+
+            sender.sendMessage(ChatColor.YELLOW + hunterName + ChatColor.WHITE + " claimed "
+                    + ChatColor.GREEN + String.format("$%.2f", claim.reward())
+                    + ChatColor.WHITE + " for killing " + ChatColor.YELLOW + targetName
+                    + ChatColor.GRAY + " (" + date + ")");
+        }
+    }
+
+    // -------------------------------------------------------------------------
     // /bountyadmin config get <key>
     // -------------------------------------------------------------------------
 
@@ -563,6 +604,8 @@ public final class AdminCommand implements CommandExecutor, TabCompleter {
                 + ChatColor.GRAY + " - Place a free admin bounty");
         sender.sendMessage(ChatColor.YELLOW + "/bountyadmin inspect <player>"
                 + ChatColor.GRAY + " - View all bounty details (anonymity unmasked)");
+        sender.sendMessage(ChatColor.YELLOW + "/bountyadmin history [limit]"
+                + ChatColor.GRAY + " - View recent bounty claims (default 10)");
     }
 
     // -------------------------------------------------------------------------
@@ -625,7 +668,7 @@ public final class AdminCommand implements CommandExecutor, TabCompleter {
             return Collections.emptyList();
         }
 
-        List<String> topLevel = List.of("config", "remove", "clear", "clearall", "give", "inspect", "reload");
+        List<String> topLevel = List.of("config", "remove", "clear", "clearall", "give", "inspect", "history", "reload");
 
         if (args.length == 1) {
             return filterStartsWith(topLevel, args[0]);

@@ -512,6 +512,13 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
     // -------------------------------------------------------------------------
 
     private void handleTop(CommandSender sender) {
+        // Players get the leaderboard GUI; console/command blocks fall back to chat below
+        // since inventories can't be opened for a non-player sender.
+        if (sender instanceof Player player) {
+            plugin.getTopBountiesGUI().open(player, com.swag.swagbounties.gui.TopBountiesGUI.Tab.WANTED);
+            return;
+        }
+
         List<Bounty> all = bountyManager.getAllBounties();
 
         if (all.isEmpty()) {

@@ -1,10 +1,12 @@
 package com.swag.swagbounties;
 
 import com.swag.swagbounties.bounty.BountyManager;
+import com.swag.swagbounties.bounty.ClaimTracker;
 import com.swag.swagbounties.command.AdminCommand;
 import com.swag.swagbounties.command.BountiesCommand;
 import com.swag.swagbounties.command.BountyCommand;
 import com.swag.swagbounties.gui.BountiesGUI;
+import com.swag.swagbounties.gui.TopBountiesGUI;
 import com.swag.swagbounties.listener.BountyListener;
 import com.swag.swagbounties.listener.GUIListener;
 import com.swag.swagbounties.placeholder.SwagBountiesExpansion;
@@ -23,9 +25,11 @@ public final class SwagBounties extends JavaPlugin {
     private static SwagBounties instance;
 
     private BountyManager bountyManager;
+    private ClaimTracker claimTracker;
     // MIGRATED: replaced by SwagAPI IEconomyService — see ecoService field and hookSwagAPI()
     // private Economy economy;
     private BountiesGUI bountiesGUI;
+    private TopBountiesGUI topBountiesGUI;
 
     // ── SwagAPI service references ──────────────────────────────────────────────
     private com.SwagDev.SwagAPI.api.IDatabaseService dbService;
@@ -46,6 +50,9 @@ public final class SwagBounties extends JavaPlugin {
         bountyManager = new BountyManager(new File(getDataFolder(), "bounties.yml"));
         bountyManager.loadFromDisk();
 
+        claimTracker = new ClaimTracker(new File(getDataFolder(), "claims.yml"));
+        claimTracker.loadFromDisk();
+
         BountyCommand bountyCommand = new BountyCommand(this);
         PluginCommand command = getCommand("bounty");
         if (command != null) {
@@ -58,6 +65,7 @@ public final class SwagBounties extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new BountyListener(this), this);
 
         bountiesGUI = new BountiesGUI(this);
+        topBountiesGUI = new TopBountiesGUI(this);
         getServer().getPluginManager().registerEvents(new GUIListener(this), this);
 
         BountiesCommand bountiesCmd = new BountiesCommand(this);
@@ -94,6 +102,13 @@ public final class SwagBounties extends JavaPlugin {
                 bountyManager.saveToDisk();
             } catch (RuntimeException e) {
                 getLogger().severe("Failed to save bounties.yml on shutdown: " + e.getMessage());
+            }
+        }
+        if (claimTracker != null) {
+            try {
+                claimTracker.saveToDisk();
+            } catch (RuntimeException e) {
+                getLogger().severe("Failed to save claims.yml on shutdown: " + e.getMessage());
             }
         }
         getLogger().info("SwagBounties disabled.");
@@ -166,6 +181,10 @@ public final class SwagBounties extends JavaPlugin {
         return bountyManager;
     }
 
+    public ClaimTracker getClaimTracker() {
+        return claimTracker;
+    }
+
     public com.SwagDev.SwagAPI.api.IDatabaseService getDbService() {
         return dbService;
     }
@@ -180,6 +199,10 @@ public final class SwagBounties extends JavaPlugin {
 
     public BountiesGUI getBountiesGUI() {
         return bountiesGUI;
+    }
+
+    public TopBountiesGUI getTopBountiesGUI() {
+        return topBountiesGUI;
     }
 
     public void rebuildBountiesGUI() {

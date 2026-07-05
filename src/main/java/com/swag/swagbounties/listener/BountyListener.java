@@ -95,6 +95,9 @@ public class BountyListener implements Listener {
         bountyManager.saveToDisk();
         SwagBounties.getInstance().rebuildBountiesGUI();
 
+        plugin.getClaimTracker().recordClaim(killer.getUniqueId(), victim.getUniqueId(), totalReward);
+        plugin.getClaimTracker().saveToDisk();
+
         String template = plugin.getConfig().getString(
                 "claim-message",
                 "&c[SwagBounties] &e%killer% &fhas claimed a &a$%amount% &fbounty on &e%target%&f!");

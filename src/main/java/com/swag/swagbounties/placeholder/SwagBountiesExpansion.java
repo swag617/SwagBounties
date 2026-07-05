@@ -2,6 +2,7 @@ package com.swag.swagbounties.placeholder;
 
 import com.swag.swagbounties.SwagBounties;
 import com.swag.swagbounties.bounty.Bounty;
+import com.swag.swagbounties.bounty.ClaimTracker;
 import me.clip.placeholderapi.expansion.PlaceholderExpansion;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
@@ -20,10 +21,14 @@ import java.util.UUID;
  * <ul>
  *   <li>{@code %swagbounties_top_reward%} — highest total reward across all targets</li>
  *   <li>{@code %swagbounties_top_target%} — name of the most-wanted player</li>
- *   <li>{@code %swagbounties_top_hunter%} — most prolific bounty claimer (stub)</li>
+ *   <li>{@code %swagbounties_top_hunter%} — most prolific bounty claimer's name</li>
+ *   <li>{@code %swagbounties_top_hunter_claims%} — that hunter's total claim count</li>
+ *   <li>{@code %swagbounties_top_hunter_earnings%} — that hunter's total earnings</li>
  *   <li>{@code %swagbounties_total_bounties%} — count of all active bounties</li>
  *   <li>{@code %swagbounties_bounty_<playerName>%} — total reward on the named player</li>
  *   <li>{@code %swagbounties_has_bounty_<playerName>%} — "yes" or "no"</li>
+ *   <li>{@code %swagbounties_hunter_claims_<playerName>%} — that player's total bounty claims</li>
+ *   <li>{@code %swagbounties_hunter_earnings_<playerName>%} — that player's total bounty earnings</li>
  * </ul>
  */
 public final class SwagBountiesExpansion extends PlaceholderExpansion {
@@ -92,14 +97,23 @@ public final class SwagBountiesExpansion extends PlaceholderExpansion {
                 return top == null ? "None" : top.name;
             }
             case "top_hunter" -> {
-                // ClaimTracker not yet implemented — return null so PAPI leaves the placeholder literal.
-                return null;
+                ClaimTracker.HunterStat top = plugin.getClaimTracker().getTopHunter();
+                return top == null ? "None" : resolveNameByUUID(top.hunterUUID());
+            }
+            case "top_hunter_claims" -> {
+                ClaimTracker.HunterStat top = plugin.getClaimTracker().getTopHunter();
+                return top == null ? "0" : String.valueOf(top.claimCount());
+            }
+            case "top_hunter_earnings" -> {
+                ClaimTracker.HunterStat top = plugin.getClaimTracker().getTopHunter();
+                return top == null ? "$0.00" : String.format("$%.2f", top.totalEarned());
             }
             case "total_bounties" -> {
                 return String.valueOf(all.size());
             }
             default -> {
-                // Dynamic: bounty_<playerName> or has_bounty_<playerName>
+                // Dynamic: bounty_<playerName>, has_bounty_<playerName>,
+                // hunter_claims_<playerName>, or hunter_earnings_<playerName>
                 String lower = params.toLowerCase();
                 if (lower.startsWith("bounty_")) {
                     String targetName = params.substring("bounty_".length());
@@ -110,6 +124,16 @@ public final class SwagBountiesExpansion extends PlaceholderExpansion {
                     String targetName = params.substring("has_bounty_".length());
                     double total = resolveRewardByName(all, targetName);
                     return total > 0.0 ? "yes" : "no";
+                }
+                if (lower.startsWith("hunter_claims_")) {
+                    String hunterName = params.substring("hunter_claims_".length());
+                    ClaimTracker.HunterStat stat = resolveHunterStatByName(hunterName);
+                    return String.valueOf(stat == null ? 0 : stat.claimCount());
+                }
+                if (lower.startsWith("hunter_earnings_")) {
+                    String hunterName = params.substring("hunter_earnings_".length());
+                    ClaimTracker.HunterStat stat = resolveHunterStatByName(hunterName);
+                    return String.format("$%.2f", stat == null ? 0.0 : stat.totalEarned());
                 }
                 return null; // unknown placeholder — let PAPI handle gracefully
             }
@@ -168,6 +192,27 @@ public final class SwagBountiesExpansion extends PlaceholderExpansion {
             }
         }
         return total;
+    }
+
+    /**
+     * Resolves a hunter's aggregate claim stats by their last-known player name
+     * (case-insensitive). Returns null if the name doesn't resolve to any known
+     * player, or if that player has never claimed a bounty.
+     */
+    private @Nullable ClaimTracker.HunterStat resolveHunterStatByName(String hunterName) {
+        Player online = plugin.getServer().getPlayerExact(hunterName);
+        UUID uuid;
+        if (online != null) {
+            uuid = online.getUniqueId();
+        } else {
+            @SuppressWarnings("deprecation")
+            org.bukkit.OfflinePlayer op = plugin.getServer().getOfflinePlayer(hunterName);
+            if (!op.hasPlayedBefore() && !op.isOnline()) {
+                return null;
+            }
+            uuid = op.getUniqueId();
+        }
+        return plugin.getClaimTracker().getHunterStat(uuid);
     }
 
     /**
