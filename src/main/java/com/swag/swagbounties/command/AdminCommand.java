@@ -3,7 +3,8 @@ package com.swag.swagbounties.command;
 import com.swag.swagbounties.SwagBounties;
 import com.swag.swagbounties.bounty.Bounty;
 import com.swag.swagbounties.bounty.BountyManager;
-import net.milkbowl.vault.economy.Economy;
+// MIGRATED: Vault economy replaced by SwagAPI IEconomyService
+// import net.milkbowl.vault.economy.Economy;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.OfflinePlayer;
@@ -140,7 +141,7 @@ public final class AdminCommand implements CommandExecutor, TabCompleter {
         }
 
         BountyManager bm = plugin.getBountyManager();
-        Economy eco = plugin.getEconomy();
+        com.SwagDev.SwagAPI.api.IEconomyService eco = plugin.getEcoService();
 
         OfflinePlayer target = resolveOfflinePlayer(args[1]);
         if (target == null) {
@@ -173,11 +174,15 @@ public final class AdminCommand implements CommandExecutor, TabCompleter {
             }
         }
 
+        boolean ecoAvailable = eco != null && eco.isEnabled();
         int removed = 0;
+        int refundFailures = 0;
         for (Bounty b : bounties) {
             if (bm.removeBounty(target.getUniqueId(), b.getCreatorUUID())) {
                 if (!b.getCreatorUUID().equals(SERVER_UUID)) {
-                    eco.depositPlayer(Bukkit.getOfflinePlayer(b.getCreatorUUID()), b.getReward());
+                    if (!ecoAvailable || !eco.deposit(Bukkit.getOfflinePlayer(b.getCreatorUUID()), b.getReward())) {
+                        refundFailures++;
+                    }
                 }
                 removed++;
             }
@@ -190,6 +195,9 @@ public final class AdminCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage(PREFIX + ChatColor.GREEN + "Removed " + ChatColor.YELLOW + removed
                 + ChatColor.GREEN + " bounty/bounties on " + ChatColor.YELLOW + targetName
                 + ChatColor.GREEN + " and refunded creators.");
+        if (refundFailures > 0) {
+            sender.sendMessage(PREFIX + ChatColor.RED + refundFailures + " refund(s) failed (economy unavailable).");
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -204,7 +212,7 @@ public final class AdminCommand implements CommandExecutor, TabCompleter {
         }
 
         BountyManager bm = plugin.getBountyManager();
-        Economy eco = plugin.getEconomy();
+        com.SwagDev.SwagAPI.api.IEconomyService eco = plugin.getEcoService();
 
         OfflinePlayer target = resolveOfflinePlayer(args[1]);
         if (target == null) {
@@ -220,10 +228,14 @@ public final class AdminCommand implements CommandExecutor, TabCompleter {
             return;
         }
 
+        boolean ecoAvailable = eco != null && eco.isEnabled();
+        int refundFailures = 0;
         for (Bounty b : bounties) {
             if (bm.removeBounty(target.getUniqueId(), b.getCreatorUUID())) {
                 if (!b.getCreatorUUID().equals(SERVER_UUID)) {
-                    eco.depositPlayer(Bukkit.getOfflinePlayer(b.getCreatorUUID()), b.getReward());
+                    if (!ecoAvailable || !eco.deposit(Bukkit.getOfflinePlayer(b.getCreatorUUID()), b.getReward())) {
+                        refundFailures++;
+                    }
                 }
             }
         }
@@ -235,6 +247,9 @@ public final class AdminCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage(PREFIX + ChatColor.GREEN + "Cleared all " + ChatColor.YELLOW + bounties.size()
                 + ChatColor.GREEN + " bounty/bounties on " + ChatColor.YELLOW + targetName
                 + ChatColor.GREEN + " and refunded all creators.");
+        if (refundFailures > 0) {
+            sender.sendMessage(PREFIX + ChatColor.RED + refundFailures + " refund(s) failed (economy unavailable).");
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -244,7 +259,7 @@ public final class AdminCommand implements CommandExecutor, TabCompleter {
 
     private void handleClearAll(CommandSender sender) {
         BountyManager bm = plugin.getBountyManager();
-        Economy eco = plugin.getEconomy();
+        com.SwagDev.SwagAPI.api.IEconomyService eco = plugin.getEcoService();
 
         List<Bounty> all = new ArrayList<>(bm.getAllBounties());
         if (all.isEmpty()) {
@@ -252,11 +267,15 @@ public final class AdminCommand implements CommandExecutor, TabCompleter {
             return;
         }
 
+        boolean ecoAvailable = eco != null && eco.isEnabled();
         int count = 0;
+        int refundFailures = 0;
         for (Bounty b : all) {
             if (bm.removeBounty(b.getTargetUUID(), b.getCreatorUUID())) {
                 if (!b.getCreatorUUID().equals(SERVER_UUID)) {
-                    eco.depositPlayer(Bukkit.getOfflinePlayer(b.getCreatorUUID()), b.getReward());
+                    if (!ecoAvailable || !eco.deposit(Bukkit.getOfflinePlayer(b.getCreatorUUID()), b.getReward())) {
+                        refundFailures++;
+                    }
                 }
                 count++;
             }
@@ -267,6 +286,9 @@ public final class AdminCommand implements CommandExecutor, TabCompleter {
 
         sender.sendMessage(PREFIX + ChatColor.GREEN + "Cleared " + ChatColor.YELLOW + count
                 + ChatColor.GREEN + " bounty/bounties server-wide and refunded all creators.");
+        if (refundFailures > 0) {
+            sender.sendMessage(PREFIX + ChatColor.RED + refundFailures + " refund(s) failed (economy unavailable).");
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -289,9 +311,10 @@ public final class AdminCommand implements CommandExecutor, TabCompleter {
 
         double amount;
         try {
-            amount = Double.parseDouble(args[2]);
+            amount = BountyCommand.parseAmount(args[2]);
         } catch (NumberFormatException e) {
-            sender.sendMessage(PREFIX + ChatColor.RED + "Invalid amount: " + ChatColor.YELLOW + args[2]);
+            sender.sendMessage(PREFIX + ChatColor.RED + "Invalid amount: " + ChatColor.YELLOW + args[2]
+                    + ChatColor.RED + ". Use a number or shorthand like 5k / 2m.");
             return;
         }
 
@@ -302,9 +325,8 @@ public final class AdminCommand implements CommandExecutor, TabCompleter {
 
         boolean anon = args.length >= 4 && args[3].equalsIgnoreCase("--anon");
 
-        // Use a fixed "server" UUID as the creator so it's distinguishable in /bounty list
-        UUID serverUUID = new UUID(0, 0);
-        Bounty bounty = new Bounty(target.getUniqueId(), serverUUID, amount, anon);
+        // Use the fixed "server" UUID as the creator so it's distinguishable in /bounty list
+        Bounty bounty = new Bounty(target.getUniqueId(), SERVER_UUID, amount, anon);
         plugin.getBountyManager().addBounty(bounty);
         plugin.getBountyManager().saveToDisk();
         plugin.rebuildBountiesGUI();
@@ -448,6 +470,12 @@ public final class AdminCommand implements CommandExecutor, TabCompleter {
                 return;
             }
 
+            error = validateMinMaxBounty(key, value);
+            if (error != null) {
+                sender.sendMessage(PREFIX + ChatColor.RED + error);
+                return;
+            }
+
             plugin.getConfig().set(key, value);
             plugin.saveConfig();
             sender.sendMessage(PREFIX + ChatColor.GREEN + "Set "
@@ -558,6 +586,20 @@ public final class AdminCommand implements CommandExecutor, TabCompleter {
                     value < 0 ? "discord-notify-threshold must be 0 or greater." : null;
             default -> null;
         };
+    }
+
+    /**
+     * Cross-field check: min-bounty must not exceed max-bounty (when a max is set),
+     * in either direction of edit. Returns an error message, or null if valid.
+     */
+    private String validateMinMaxBounty(String key, double newValue) {
+        double minBounty = key.equals("min-bounty") ? newValue : plugin.getConfig().getDouble("min-bounty", 100.0);
+        double maxBounty = key.equals("max-bounty") ? newValue : plugin.getConfig().getDouble("max-bounty", 0.0);
+
+        if (maxBounty > 0 && minBounty > maxBounty) {
+            return "min-bounty (" + minBounty + ") cannot be greater than max-bounty (" + maxBounty + ").";
+        }
+        return null;
     }
 
     /**

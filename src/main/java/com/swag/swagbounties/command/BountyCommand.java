@@ -4,7 +4,8 @@ import com.swag.swagbounties.SwagBounties;
 import com.swag.swagbounties.bounty.Bounty;
 import com.swag.swagbounties.bounty.BountyManager;
 import com.swag.swagbounties.discord.DiscordWebhook;
-import net.milkbowl.vault.economy.Economy;
+// MIGRATED: Vault economy replaced by SwagAPI IEconomyService (see ecoService field below)
+// import net.milkbowl.vault.economy.Economy;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.command.Command;
@@ -33,7 +34,9 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
 
     private final SwagBounties plugin;
     private final BountyManager bountyManager;
-    private final Economy economy;
+    // MIGRATED: replaced by SwagAPI IEconomyService
+    // private final Economy economy;
+    private final com.SwagDev.SwagAPI.api.IEconomyService ecoService;
 
     /**
      * Tracks the epoch-millisecond timestamp of the last bounty action (set/remove/add)
@@ -45,7 +48,16 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
     public BountyCommand(SwagBounties plugin) {
         this.plugin = plugin;
         this.bountyManager = plugin.getBountyManager();
-        this.economy = plugin.getEconomy();
+        this.ecoService = plugin.getEcoService();
+    }
+
+    /** Returns {@code true} and notifies the sender if economy is currently unavailable. */
+    private boolean economyUnavailable(CommandSender sender) {
+        if (ecoService == null || !ecoService.isEnabled()) {
+            sender.sendMessage(PREFIX + ChatColor.RED + "Economy is currently unavailable. Please try again later.");
+            return true;
+        }
+        return false;
     }
 
     // -------------------------------------------------------------------------
@@ -77,6 +89,21 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
     // -------------------------------------------------------------------------
     // /bounty set <player> <amount> [--anon]
     // -------------------------------------------------------------------------
+
+    /**
+     * Parses an amount string that may use k/m shorthand.
+     * e.g. "5k" -> 5000, "2.5m" -> 2500000, "500" -> 500
+     * Throws NumberFormatException if the input is not valid.
+     */
+    static double parseAmount(String input) {
+        String s = input.trim().toLowerCase();
+        if (s.endsWith("m")) {
+            return Double.parseDouble(s.substring(0, s.length() - 1)) * 1_000_000;
+        } else if (s.endsWith("k")) {
+            return Double.parseDouble(s.substring(0, s.length() - 1)) * 1_000;
+        }
+        return Double.parseDouble(s);
+    }
 
     private void handleSet(CommandSender sender, String[] args) {
         if (!(sender instanceof Player player)) {
@@ -113,13 +140,13 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
         // Cooldown check
         if (isOnCooldown(player)) return;
 
-        // Parse amount
+        // Parse amount (supports k/m shorthand: 5k = 5000, 2m = 2000000)
         double amount;
         try {
-            amount = Double.parseDouble(args[2]);
+            amount = parseAmount(args[2]);
         } catch (NumberFormatException e) {
             player.sendMessage(PREFIX + ChatColor.RED + "Invalid amount: " + ChatColor.YELLOW + args[2]
-                    + ChatColor.RED + ". Please enter a positive number.");
+                    + ChatColor.RED + ". Use a number or shorthand like 5k / 2m.");
             return;
         }
 
@@ -152,8 +179,16 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
         double taxedAmount = amount * (placementTax / 100.0);
         double actualReward = amount - taxedAmount;
 
+        if (actualReward <= 0) {
+            player.sendMessage(PREFIX + ChatColor.RED
+                    + "The configured placement tax leaves no reward after tax. Contact an admin.");
+            return;
+        }
+
         // Economy checks
-        if (!economy.has(player, amount)) {
+        if (economyUnavailable(player)) return;
+
+        if (!ecoService.has(player, amount)) {
             player.sendMessage(PREFIX + ChatColor.RED + "You do not have enough money. You need "
                     + ChatColor.GREEN + String.format("$%.2f", amount) + ChatColor.RED + ".");
             return;
@@ -161,7 +196,10 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
 
         String targetName = target.getName() != null ? target.getName() : args[1];
 
-        economy.withdrawPlayer(player, amount);
+        if (!ecoService.withdraw(player, amount)) {
+            player.sendMessage(PREFIX + ChatColor.RED + "Transaction failed. Please try again.");
+            return;
+        }
         bountyManager.addBounty(new Bounty(target.getUniqueId(), player.getUniqueId(), actualReward, isAnon));
         bountyManager.saveToDisk();
         SwagBounties.getInstance().rebuildBountiesGUI();
@@ -189,7 +227,7 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
                     .replace("%creator%", isAnon ? "Anonymous" : player.getName())
                     .replace("%target%", targetName)
                     .replace("%amount%", String.format("%.2f", actualReward));
-            DiscordWebhook.sendAsync(webhookUrl, discordMsg);
+            DiscordWebhook.sendEmbedAsync(webhookUrl, "🎯 Bounty Placed", discordMsg, DiscordWebhook.COLOR_SET);
         }
 
         // Confirmation to the setter
@@ -248,15 +286,21 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
                 double refund = b.getReward();
                 boolean removed = bountyManager.removeBounty(b.getTargetUUID(), player.getUniqueId());
                 if (removed) {
-                    economy.depositPlayer(player, refund);
+                    boolean refunded = ecoService != null && ecoService.isEnabled() && ecoService.deposit(player, refund);
                     bountyManager.saveToDisk();
                     SwagBounties.getInstance().rebuildBountiesGUI();
                     stampCooldown(player);
-                    player.sendMessage(PREFIX + ChatColor.GREEN + "Your bounty on "
-                            + ChatColor.YELLOW + targetName
-                            + ChatColor.GREEN + " has been removed. "
-                            + ChatColor.YELLOW + String.format("$%.2f", refund)
-                            + ChatColor.GREEN + " refunded.");
+                    if (refunded) {
+                        player.sendMessage(PREFIX + ChatColor.GREEN + "Your bounty on "
+                                + ChatColor.YELLOW + targetName
+                                + ChatColor.GREEN + " has been removed. "
+                                + ChatColor.YELLOW + String.format("$%.2f", refund)
+                                + ChatColor.GREEN + " refunded.");
+                    } else {
+                        player.sendMessage(PREFIX + ChatColor.YELLOW + "Your bounty on "
+                                + targetName + ChatColor.RED
+                                + " has been removed, but the refund failed. Please contact an admin.");
+                    }
                 } else {
                     player.sendMessage(PREFIX + ChatColor.RED
                             + "Failed to remove the bounty (concurrent modification). Please try again.");
@@ -292,15 +336,21 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
         boolean removed = bountyManager.removeBounty(targetUUID, player.getUniqueId());
 
         if (removed) {
-            economy.depositPlayer(player, refund);
+            boolean refunded = ecoService != null && ecoService.isEnabled() && ecoService.deposit(player, refund);
             bountyManager.saveToDisk();
             SwagBounties.getInstance().rebuildBountiesGUI();
             stampCooldown(player);
-            player.sendMessage(PREFIX + ChatColor.GREEN + "Your bounty on "
-                    + ChatColor.YELLOW + targetDisplayName
-                    + ChatColor.GREEN + " has been removed. "
-                    + ChatColor.YELLOW + String.format("$%.2f", refund)
-                    + ChatColor.GREEN + " refunded.");
+            if (refunded) {
+                player.sendMessage(PREFIX + ChatColor.GREEN + "Your bounty on "
+                        + ChatColor.YELLOW + targetDisplayName
+                        + ChatColor.GREEN + " has been removed. "
+                        + ChatColor.YELLOW + String.format("$%.2f", refund)
+                        + ChatColor.GREEN + " refunded.");
+            } else {
+                player.sendMessage(PREFIX + ChatColor.YELLOW + "Your bounty on "
+                        + targetDisplayName + ChatColor.RED
+                        + " has been removed, but the refund failed. Please contact an admin.");
+            }
         } else {
             // Race condition — the bounty was removed between our read and our write
             player.sendMessage(PREFIX + ChatColor.RED
@@ -364,13 +414,13 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
             return;
         }
 
-        // Parse additional amount
+        // Parse additional amount (supports k/m shorthand)
         double amount;
         try {
-            amount = Double.parseDouble(args[2]);
+            amount = parseAmount(args[2]);
         } catch (NumberFormatException e) {
             player.sendMessage(PREFIX + ChatColor.RED + "Invalid amount: " + ChatColor.YELLOW + args[2]
-                    + ChatColor.RED + ". Please enter a positive number.");
+                    + ChatColor.RED + ". Use a number or shorthand like 5k / 2m.");
             return;
         }
 
@@ -394,6 +444,12 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
         double taxedAmount = amount * (placementTax / 100.0);
         double additionalReward = amount - taxedAmount;
 
+        if (additionalReward <= 0) {
+            player.sendMessage(PREFIX + ChatColor.RED
+                    + "The configured placement tax leaves no reward after tax. Contact an admin.");
+            return;
+        }
+
         String targetName = target.getName() != null ? target.getName() : args[1];
         double newTotalReward = existing.getReward() + additionalReward;
 
@@ -404,9 +460,17 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
         }
 
         // Economy check
-        if (!economy.has(player, amount)) {
+        if (economyUnavailable(player)) return;
+
+        if (!ecoService.has(player, amount)) {
             player.sendMessage(PREFIX + ChatColor.RED + "You do not have enough money. You need "
                     + ChatColor.GREEN + String.format("$%.2f", amount) + ChatColor.RED + ".");
+            return;
+        }
+
+        // Withdraw first so a failed transaction never touches the existing bounty.
+        if (!ecoService.withdraw(player, amount)) {
+            player.sendMessage(PREFIX + ChatColor.RED + "Transaction failed. Please try again.");
             return;
         }
 
@@ -414,12 +478,14 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
         // updated bounty preserving the original placedAt timestamp and anonymous flag.
         boolean removed = bountyManager.removeBounty(target.getUniqueId(), player.getUniqueId());
         if (!removed) {
+            // The bounty vanished between our read and this point (e.g. claimed by a kill).
+            // Money was already withdrawn, so refund it rather than silently keeping it.
+            ecoService.deposit(player, amount);
             player.sendMessage(PREFIX + ChatColor.RED
-                    + "Failed to update the bounty (concurrent modification). Please try again.");
+                    + "Failed to update the bounty (it was claimed or removed). Your payment was refunded.");
             return;
         }
 
-        economy.withdrawPlayer(player, amount);
         bountyManager.addBounty(new Bounty(
                 target.getUniqueId(),
                 player.getUniqueId(),

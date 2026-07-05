@@ -5,33 +5,36 @@ import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 
 /**
- * Minimal Discord webhook utility that posts a plain-text content message to a
- * webhook URL using only {@link HttpURLConnection} — no extra dependencies.
+ * Discord webhook utility that posts rich embeds to a webhook URL using only
+ * {@link HttpURLConnection} — no extra dependencies.
  *
- * <p>All methods are static and fire-and-forget: checked exceptions are caught
- * internally and logged to stderr. Callers on the main server thread should use
- * {@link #sendAsync(String, String)} so the HTTP I/O happens on a virtual thread.</p>
+ * Callers on the main server thread should use {@link #sendEmbedAsync} so the
+ * HTTP I/O happens on a virtual thread.
  */
 public final class DiscordWebhook {
 
-    private DiscordWebhook() {
-        // utility class — no instances
-    }
+    // Embed colours
+    public static final int COLOR_SET    = 0xe67e22; // orange  — bounty placed
+    public static final int COLOR_CLAIM  = 0xe74c3c; // red     — bounty claimed
+    public static final int COLOR_EXPIRE = 0x95a5a6; // grey    — bounty expired
+
+    private DiscordWebhook() {}
 
     /**
-     * Sends a Discord webhook message synchronously on the calling thread.
+     * Sends a rich embed synchronously. Blocks until the HTTP round-trip completes.
+     * Prefer {@link #sendEmbedAsync} from the main thread.
      *
-     * <p>This is safe to call from any thread but will block until the HTTP
-     * round-trip completes. Prefer {@link #sendAsync} from the main thread.</p>
-     *
-     * @param webhookUrl the full Discord webhook URL
-     * @param content    the message content (will be JSON-escaped)
+     * @param webhookUrl  full Discord webhook URL
+     * @param title       embed title (may include emoji)
+     * @param description embed body text (will be JSON-escaped)
+     * @param color       sidebar colour as a 24-bit RGB int
      */
-    public static void send(String webhookUrl, String content) {
+    public static void sendEmbed(String webhookUrl, String title, String description, int color) {
         try {
-            byte[] payload = buildPayload(content);
+            byte[] payload = buildEmbedPayload(title, description, color);
 
             HttpURLConnection conn = (HttpURLConnection) new URL(webhookUrl).openConnection();
             conn.setRequestMethod("POST");
@@ -57,34 +60,37 @@ public final class DiscordWebhook {
     }
 
     /**
-     * Sends a Discord webhook message asynchronously on a virtual thread (Java 21).
-     *
-     * <p>This is the preferred method when calling from the main server thread since
-     * it offloads the blocking HTTP call without consuming a platform thread.</p>
-     *
-     * @param webhookUrl the full Discord webhook URL
-     * @param content    the message content (will be JSON-escaped)
+     * Sends a rich embed asynchronously on a virtual thread (Java 21).
+     * This is the preferred method when calling from the main server thread.
      */
-    public static void sendAsync(String webhookUrl, String content) {
-        Thread.ofVirtual().start(() -> send(webhookUrl, content));
+    public static void sendEmbedAsync(String webhookUrl, String title, String description, int color) {
+        Thread.ofVirtual().start(() -> sendEmbed(webhookUrl, title, description, color));
     }
 
     // -------------------------------------------------------------------------
-    // Internals
-    // -------------------------------------------------------------------------
 
-    /**
-     * Builds the UTF-8 JSON payload for the given content string, escaping
-     * backslashes and double-quotes so the JSON remains valid.
-     */
-    private static byte[] buildPayload(String content) {
-        String escaped = content
-                .replace("\\", "\\\\")
+    private static byte[] buildEmbedPayload(String title, String description, int color) {
+        String escapedTitle = escape(title);
+        String escapedDesc  = escape(description);
+        String timestamp    = Instant.now().toString();
+
+        String json = "{"
+                + "\"embeds\":[{"
+                + "\"title\":\"" + escapedTitle + "\","
+                + "\"description\":\"" + escapedDesc + "\","
+                + "\"color\":" + color + ","
+                + "\"footer\":{\"text\":\"SwagBounties\"},"
+                + "\"timestamp\":\"" + timestamp + "\""
+                + "}]}";
+
+        return json.getBytes(StandardCharsets.UTF_8);
+    }
+
+    private static String escape(String s) {
+        return s.replace("\\", "\\\\")
                 .replace("\"", "\\\"")
                 .replace("\n", "\\n")
                 .replace("\r", "\\r")
                 .replace("\t", "\\t");
-        String json = "{\"content\": \"" + escaped + "\"}";
-        return json.getBytes(StandardCharsets.UTF_8);
     }
 }

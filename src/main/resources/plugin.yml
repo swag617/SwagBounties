@@ -4,8 +4,9 @@ main: com.swag.swagbounties.SwagBounties
 api-version: '1.21'
 authors: [SwagTeam]
 description: Player bounty system with GUI, economy integration, and Discord webhooks
-depend: [Vault]
+depend: [SwagAPI]
 softdepend: [PlaceholderAPI]
+# Vault removed from depend — SwagAPI's IEconomyService now handles economy (see SwagBounties#hookSwagAPI)
 commands:
   bounty:
     description: Bounty commands

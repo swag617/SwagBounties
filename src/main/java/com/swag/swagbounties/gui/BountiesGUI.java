@@ -54,9 +54,26 @@ public final class BountiesGUI {
     // -------------------------------------------------------------------------
 
     public BountiesGUI(SwagBounties plugin) {
+        this(plugin, Map.of());
+    }
+
+    /**
+     * Builds a fresh instance while carrying over per-viewer page tracking from a
+     * previous instance. Without this, every rebuild (triggered by any bounty
+     * mutation server-wide) would silently reset every viewer's tracked page back
+     * to 0, desyncing next/prev/back navigation from the page actually on screen.
+     * Carried-over pages are clamped to the new page count in case pages shrank.
+     */
+    public BountiesGUI(SwagBounties plugin, Map<UUID, Integer> previousPlayerPages) {
         this.plugin = plugin;
         this.bountyManager = plugin.getBountyManager();
         this.pages = buildPages();
+
+        int maxPage = pages.size() - 1;
+        for (Map.Entry<UUID, Integer> entry : previousPlayerPages.entrySet()) {
+            int clamped = Math.max(0, Math.min(entry.getValue(), maxPage));
+            playerPage.put(entry.getKey(), clamped);
+        }
     }
 
     /**
@@ -202,6 +219,11 @@ public final class BountiesGUI {
     /** Removes page tracking for this player. Call on inventory close. */
     public void removePlayerPage(UUID uuid) {
         playerPage.remove(uuid);
+    }
+
+    /** Returns a snapshot of all tracked viewer pages, for carrying over into a rebuilt instance. */
+    public Map<UUID, Integer> snapshotPlayerPages() {
+        return new HashMap<>(playerPage);
     }
 
     /** Returns the total number of pages (always at least 1). */

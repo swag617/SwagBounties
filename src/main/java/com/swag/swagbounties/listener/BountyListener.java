@@ -4,7 +4,8 @@ import com.swag.swagbounties.SwagBounties;
 import com.swag.swagbounties.bounty.Bounty;
 import com.swag.swagbounties.bounty.BountyManager;
 import com.swag.swagbounties.discord.DiscordWebhook;
-import net.milkbowl.vault.economy.Economy;
+// MIGRATED: Vault economy replaced by SwagAPI IEconomyService
+// import net.milkbowl.vault.economy.Economy;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.entity.Player;
@@ -88,8 +89,8 @@ public class BountyListener implements Listener {
             bountyManager.removeBounty(victim.getUniqueId(), bounty.getCreatorUUID());
         }
 
-        Economy economy = plugin.getEconomy();
-        economy.depositPlayer(killer, totalReward);
+        com.SwagDev.SwagAPI.api.IEconomyService ecoService = plugin.getEcoService();
+        boolean paid = ecoService != null && ecoService.isEnabled() && ecoService.deposit(killer, totalReward);
 
         bountyManager.saveToDisk();
         SwagBounties.getInstance().rebuildBountiesGUI();
@@ -102,6 +103,24 @@ public class BountyListener implements Listener {
                 .replace("%target%", victim.getName())
                 .replace("%amount%", String.format("%.2f", totalReward))));
 
+        if (!paid) {
+            killer.sendMessage(ChatColor.RED
+                    + "[SwagBounties] Your bounty payout could not be deposited automatically. Please contact an admin.");
+        }
+
+        com.SwagDev.SwagAPI.api.IEventBusService busService = plugin.getBusService();
+        if (busService != null) {
+            java.util.Map<String, Object> payload = new java.util.HashMap<>();
+            payload.put("uuid", killer.getUniqueId().toString());
+            payload.put("targetUuid", victim.getUniqueId().toString());
+            payload.put("reward", totalReward);
+            busService.publish(new com.SwagDev.SwagAPI.events.SwagCrossPluginMessageEvent(
+                    "swagbounties:bounty_claimed",
+                    "SwagBounties",
+                    payload,
+                    killer.getUniqueId()));
+        }
+
         String webhookUrl = plugin.getConfig().getString("discord-webhook-url", "");
         double threshold = plugin.getConfig().getDouble("discord-notify-threshold", 500.0);
         if (!webhookUrl.isEmpty() && totalReward >= threshold) {
@@ -111,7 +130,7 @@ public class BountyListener implements Listener {
                     .replace("%killer%", killer.getName())
                     .replace("%target%", victim.getName())
                     .replace("%amount%", String.format("%.2f", totalReward));
-            DiscordWebhook.sendAsync(webhookUrl, discordMsg);
+            DiscordWebhook.sendEmbedAsync(webhookUrl, "⚔️ Bounty Claimed", discordMsg, DiscordWebhook.COLOR_CLAIM);
         }
     }
 }

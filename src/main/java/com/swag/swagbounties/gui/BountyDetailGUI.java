@@ -49,9 +49,14 @@ public final class BountyDetailGUI {
 
         List<Bounty> bounties = plugin.getBountyManager().getBounties(targetUUID);
 
-        int limit = Math.min(bounties.size(), CONTENT_SLOTS);
+        boolean truncated = bounties.size() > CONTENT_SLOTS;
+        // Reserve the last content slot for a "+N more" indicator when truncated
+        int limit = truncated ? CONTENT_SLOTS - 1 : bounties.size();
         for (int i = 0; i < limit; i++) {
             inv.setItem(i, buildBountyBook(bounties.get(i)));
+        }
+        if (truncated) {
+            inv.setItem(limit, buildMoreIndicator(bounties.size() - limit));
         }
 
         ItemStack filler = makeFiller();
@@ -99,6 +104,17 @@ public final class BountyDetailGUI {
         }
 
         return book;
+    }
+
+    /** Built when a target has more individual bounties than fit on one page. */
+    private ItemStack buildMoreIndicator(int remaining) {
+        ItemStack item = new ItemStack(Material.PAPER);
+        ItemMeta meta = item.getItemMeta();
+        if (meta != null) {
+            meta.setDisplayName(ChatColor.GOLD + "+" + remaining + " more not shown");
+            item.setItemMeta(meta);
+        }
+        return item;
     }
 
     private ItemStack makeFiller() {

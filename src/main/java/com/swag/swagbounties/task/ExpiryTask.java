@@ -3,7 +3,8 @@ package com.swag.swagbounties.task;
 import com.swag.swagbounties.SwagBounties;
 import com.swag.swagbounties.bounty.Bounty;
 import com.swag.swagbounties.discord.DiscordWebhook;
-import net.milkbowl.vault.economy.Economy;
+// MIGRATED: Vault economy replaced by SwagAPI IEconomyService
+// import net.milkbowl.vault.economy.Economy;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.OfflinePlayer;
@@ -41,7 +42,8 @@ public final class ExpiryTask extends BukkitRunnable {
         long now = System.currentTimeMillis();
 
         double expiryRefundTax = plugin.getConfig().getDouble("expiry-refund-tax", 10.0);
-        Economy economy = plugin.getEconomy();
+        com.SwagDev.SwagAPI.api.IEconomyService ecoService = plugin.getEcoService();
+        boolean ecoAvailable = ecoService != null && ecoService.isEnabled();
         String webhookUrl = plugin.getConfig().getString("discord-webhook-url", "");
         double threshold = plugin.getConfig().getDouble("discord-notify-threshold", 500.0);
 
@@ -59,19 +61,29 @@ public final class ExpiryTask extends BukkitRunnable {
                 continue;
             }
 
-            double refund = bounty.getReward() * (1.0 - expiryRefundTax / 100.0);
+            // Clamp to 0 in case expiry-refund-tax was manually set above 100 in config.yml
+            double refund = Math.max(0.0, bounty.getReward() * (1.0 - expiryRefundTax / 100.0));
             String targetName = resolveTargetName(bounty);
 
             // Admin-placed bounties use SERVER_UUID as creator; skip economy deposit for those.
             if (!bounty.getCreatorUUID().equals(SERVER_UUID)) {
                 OfflinePlayer creator = Bukkit.getOfflinePlayer(bounty.getCreatorUUID());
-                economy.depositPlayer(creator, refund);
+                boolean refunded = ecoAvailable && ecoService.deposit(creator, refund);
 
                 Player onlineCreator = Bukkit.getPlayer(bounty.getCreatorUUID());
                 if (onlineCreator != null) {
-                    onlineCreator.sendMessage(ChatColor.translateAlternateColorCodes('&',
-                            "&c[SwagBounties] &fYour bounty on &e" + targetName
-                            + " &fhas expired. &a$" + String.format("%.2f", refund) + " &frefunded."));
+                    if (refunded) {
+                        onlineCreator.sendMessage(ChatColor.translateAlternateColorCodes('&',
+                                "&c[SwagBounties] &fYour bounty on &e" + targetName
+                                + " &fhas expired. &a$" + String.format("%.2f", refund) + " &frefunded."));
+                    } else {
+                        onlineCreator.sendMessage(ChatColor.translateAlternateColorCodes('&',
+                                "&c[SwagBounties] &fYour bounty on &e" + targetName
+                                + " &fhas expired, but the refund failed. Please contact an admin."));
+                    }
+                } else if (!refunded) {
+                    plugin.getLogger().warning("Failed to refund expired bounty of $" + String.format("%.2f", refund)
+                            + " to offline creator " + bounty.getCreatorUUID());
                 }
             }
 
@@ -81,7 +93,7 @@ public final class ExpiryTask extends BukkitRunnable {
                                 "⏰ A **$%amount%** bounty on **%target%** has expired and was refunded.")
                         .replace("%amount%", String.format("%.2f", refund))
                         .replace("%target%", targetName);
-                DiscordWebhook.sendAsync(webhookUrl, discordMsg);
+                DiscordWebhook.sendEmbedAsync(webhookUrl, "⌛ Bounty Expired", discordMsg, DiscordWebhook.COLOR_EXPIRE);
             }
 
             count++;

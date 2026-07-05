@@ -51,7 +51,15 @@ public final class GUIListener implements Listener {
             return;
         }
 
-        // Always cancel to prevent item theft from our custom inventory
+        // Only cancel clicks in our own (top) inventory — clicks in the viewer's own
+        // inventory (bottom half of the view) must be left alone so players can still
+        // manage their inventory while the GUI is open.
+        if (event.getClickedInventory() == null
+                || event.getClickedInventory() != event.getView().getTopInventory()) {
+            return;
+        }
+
+        // Cancel to prevent item theft from our custom inventory
         event.setCancelled(true);
 
         // Ignore empty slots

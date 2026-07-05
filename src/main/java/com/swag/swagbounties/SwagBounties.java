@@ -9,7 +9,8 @@ import com.swag.swagbounties.listener.BountyListener;
 import com.swag.swagbounties.listener.GUIListener;
 import com.swag.swagbounties.placeholder.SwagBountiesExpansion;
 import com.swag.swagbounties.task.ExpiryTask;
-import net.milkbowl.vault.economy.Economy;
+// MIGRATED: Vault economy hook replaced by SwagAPI IEconomyService (see hookSwagAPI() / ecoService field below)
+// import net.milkbowl.vault.economy.Economy;
 import org.bukkit.Bukkit;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.plugin.RegisteredServiceProvider;
@@ -22,16 +23,22 @@ public final class SwagBounties extends JavaPlugin {
     private static SwagBounties instance;
 
     private BountyManager bountyManager;
-    private Economy economy;
+    // MIGRATED: replaced by SwagAPI IEconomyService — see ecoService field and hookSwagAPI()
+    // private Economy economy;
     private BountiesGUI bountiesGUI;
+
+    // ── SwagAPI service references ──────────────────────────────────────────────
+    private com.SwagDev.SwagAPI.api.IDatabaseService dbService;
+    private com.SwagDev.SwagAPI.api.IEconomyService  ecoService;
+    private com.SwagDev.SwagAPI.api.IEventBusService busService;
 
     @Override
     public void onEnable() {
         instance = this;
         saveDefaultConfig();
 
-        if (!setupEconomy()) {
-            getLogger().severe("Vault economy provider not found. Disabling SwagBounties.");
+        // Step 1 — Hook SwagAPI FIRST, before any manager initialization
+        if (!hookSwagAPI()) {
             getServer().getPluginManager().disablePlugin(this);
             return;
         }
@@ -92,17 +99,63 @@ public final class SwagBounties extends JavaPlugin {
         getLogger().info("SwagBounties disabled.");
     }
 
-    private boolean setupEconomy() {
-        if (getServer().getPluginManager().getPlugin("Vault") == null) {
+    // MIGRATED: replaced by SwagAPI IEconomyService, hooked in hookSwagAPI() below
+    // private boolean setupEconomy() {
+    //     if (getServer().getPluginManager().getPlugin("Vault") == null) {
+    //         return false;
+    //     }
+    //     RegisteredServiceProvider<Economy> rsp =
+    //             getServer().getServicesManager().getRegistration(Economy.class);
+    //     if (rsp == null) {
+    //         return false;
+    //     }
+    //     economy = rsp.getProvider();
+    //     return economy != null;
+    // }
+
+    /**
+     * Hooks all SwagAPI services this plugin needs. IDatabaseService is a hard
+     * requirement — if it's missing, SwagAPI isn't loaded and the plugin disables itself.
+     * BountyManager continues to persist to bounties.yml directly; dbService is hooked
+     * for suite-wide consistency and future use but is not yet used for storage.
+     */
+    private boolean hookSwagAPI() {
+        org.bukkit.plugin.ServicesManager sm = getServer().getServicesManager();
+
+        // ── Database — hard required by every plugin ─────────────────────────────
+        RegisteredServiceProvider<com.SwagDev.SwagAPI.api.IDatabaseService> dbProv =
+                sm.getRegistration(com.SwagDev.SwagAPI.api.IDatabaseService.class);
+        if (dbProv == null) {
+            getLogger().severe("SwagAPI IDatabaseService not found! Is SwagAPI loaded? Disabling.");
             return false;
         }
-        RegisteredServiceProvider<Economy> rsp =
-                getServer().getServicesManager().getRegistration(Economy.class);
-        if (rsp == null) {
-            return false;
+        dbService = dbProv.getProvider();
+        getLogger().info("Hooked SwagAPI IDatabaseService.");
+
+        // ── Economy ────────────────────────────────────────────────────────────
+        RegisteredServiceProvider<com.SwagDev.SwagAPI.api.IEconomyService> ecoProv =
+                sm.getRegistration(com.SwagDev.SwagAPI.api.IEconomyService.class);
+        if (ecoProv != null) {
+            ecoService = ecoProv.getProvider();
+            if (ecoService.isEnabled()) {
+                getLogger().info("Hooked SwagAPI IEconomyService (" + ecoService.getCurrencyName() + ").");
+            } else {
+                getLogger().warning("SwagAPI IEconomyService not available — economy features disabled.");
+            }
+        } else {
+            getLogger().warning("SwagAPI IEconomyService not registered — economy features disabled.");
         }
-        economy = rsp.getProvider();
-        return economy != null;
+
+        // ── Event bus — used to publish swagbounties:bounty_claimed ──────────────
+        RegisteredServiceProvider<com.SwagDev.SwagAPI.api.IEventBusService> busProv =
+                sm.getRegistration(com.SwagDev.SwagAPI.api.IEventBusService.class);
+        if (busProv != null) {
+            busService = busProv.getProvider();
+            getLogger().info("Hooked SwagAPI IEventBusService.");
+        }
+
+        getLogger().info("SwagAPI hook complete.");
+        return true;
     }
 
     public static SwagBounties getInstance() {
@@ -113,8 +166,16 @@ public final class SwagBounties extends JavaPlugin {
         return bountyManager;
     }
 
-    public Economy getEconomy() {
-        return economy;
+    public com.SwagDev.SwagAPI.api.IDatabaseService getDbService() {
+        return dbService;
+    }
+
+    public com.SwagDev.SwagAPI.api.IEconomyService getEcoService() {
+        return ecoService;
+    }
+
+    public com.SwagDev.SwagAPI.api.IEventBusService getBusService() {
+        return busService;
     }
 
     public BountiesGUI getBountiesGUI() {
@@ -122,6 +183,9 @@ public final class SwagBounties extends JavaPlugin {
     }
 
     public void rebuildBountiesGUI() {
-        bountiesGUI = new BountiesGUI(this);
+        java.util.Map<java.util.UUID, Integer> previousPages = bountiesGUI != null
+                ? bountiesGUI.snapshotPlayerPages()
+                : java.util.Map.of();
+        bountiesGUI = new BountiesGUI(this, previousPages);
     }
 }
