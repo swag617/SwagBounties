@@ -49,57 +49,79 @@ jobs:
           echo "CHECKSUM=$CHECKSUM" >> $GITHUB_ENV
           echo "Checksum: $CHECKSUM"
 
-      - name: Generate player-friendly changelog from git diff
+      - name: Generate player-friendly changelog
         run: |
-          echo "Generating diff-based changelog for $PLUGIN $TAG..."
+          echo "=== Generating changelog for $PLUGIN $TAG ==="
 
-          # Get all tags sorted by version, find the one before this release
+          # ── Strategy 1: Git diff between tags ────────────────────────────────
+          # Works great when there are 2+ tags — diffs actual Java source changes
           PREV_TAG=$(git tag --sort=-version:refname | grep -v "^$TAG$" | head -1)
+          DIFF=""
+          FILE_SUMMARY=""
+          GEMINI_INPUT_TYPE=""
 
-          if [ -z "$PREV_TAG" ]; then
-            echo "No previous tag found — this appears to be the first release."
-            # Diff against the very first commit instead
-            PREV_TAG=$(git rev-list --max-parents=0 HEAD)
-            echo "Using first commit as base: $PREV_TAG"
+          if [ -n "$PREV_TAG" ]; then
+            echo "Previous tag found: $PREV_TAG — using git diff strategy"
+            GEMINI_INPUT_TYPE="diff"
+
+            DIFF=$(git diff "$PREV_TAG" "$TAG" -- '*.java' | head -c 6000)
+            FILE_SUMMARY=$(git diff --stat "$PREV_TAG" "$TAG" -- '*.java' | tail -20)
+
+            echo "Files changed:"
+            echo "$FILE_SUMMARY"
+
+            if [ -z "$DIFF" ]; then
+              echo "Git diff returned no Java changes between tags — switching to release notes strategy"
+              GEMINI_INPUT_TYPE=""
+            fi
           else
-            echo "Previous tag: $PREV_TAG"
+            echo "No previous tag found — this is the first release. Switching to release notes strategy."
           fi
 
-          echo "Diffing $PREV_TAG → $TAG"
+          # ── Strategy 2: Use GitHub release notes ─────────────────────────────
+          # Used when: first release (only one tag), or diff returned no Java changes
+          # The developer writes release notes when publishing — Gemini translates them
+          if [ -z "$GEMINI_INPUT_TYPE" ]; then
+            echo "Fetching release notes from GitHub API..."
+            GEMINI_INPUT_TYPE="notes"
 
-          # Get the diff of Java source files only — skip resources, yamls, etc.
-          # Limit to 6000 chars to stay within API token limits
-          DIFF=$(git diff "$PREV_TAG" "$TAG" -- '*.java' | head -c 6000)
+            RELEASE_DATA=$(curl -s \
+              -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/${{ github.repository }}/releases/tags/$TAG")
 
-          # Also get a file-level summary (which files changed) as context
-          FILE_SUMMARY=$(git diff --stat "$PREV_TAG" "$TAG" -- '*.java' | tail -20)
+            RELEASE_NOTES=$(echo "$RELEASE_DATA" | jq -r '.body // ""')
 
-          echo "Files changed:"
-          echo "$FILE_SUMMARY"
+            echo "Release notes:"
+            echo "$RELEASE_NOTES"
 
-          if [ -z "$DIFF" ]; then
-            echo "No Java source changes detected — using fallback summary."
-            SUMMARY="✨ **$PLUGIN** has been updated with improvements and bug fixes. Log on to check it out!"
-            echo "CHANGELOG_SUMMARY<<EOF" >> $GITHUB_ENV
-            echo "$SUMMARY" >> $GITHUB_ENV
-            echo "EOF" >> $GITHUB_ENV
-            exit 0
+            if [ -z "$RELEASE_NOTES" ] || [ "$RELEASE_NOTES" = "null" ]; then
+              echo "No release notes found either — using generic fallback."
+              SUMMARY="✨ **$PLUGIN** has been updated with new features and improvements. Log on to check it out!"
+              echo "CHANGELOG_SUMMARY<<EOF" >> $GITHUB_ENV
+              echo "$SUMMARY" >> $GITHUB_ENV
+              echo "EOF" >> $GITHUB_ENV
+              exit 0
+            fi
           fi
 
-          # Call Gemini with the actual code diff
+          # ── Call Gemini with whichever input we have ──────────────────────────
+          echo "Calling Gemini with strategy: $GEMINI_INPUT_TYPE"
+
+          if [ "$GEMINI_INPUT_TYPE" = "diff" ]; then
+            GEMINI_PROMPT="You are writing a changelog for a Minecraft server Discord called FleaMC. You will be given a git diff of Java source code changes between two versions of a Minecraft plugin. Your job is to figure out what changed from a PLAYER perspective and write a short, exciting, player-friendly announcement.\n\nRules:\n- Use plain language players understand — no Java, no class names, no technical terms\n- Use emojis\n- Maximum 8 bullet points\n- Focus on what players will actually notice or experience\n- Do not mention version numbers\n- End with one short hype line encouraging players to log on\n- If the changes are mostly bug fixes, say so in a fun way\n- If you cannot determine what changed from a player perspective, write a generic exciting update message\n\nPlugin: $PLUGIN\n\nFiles changed:\n$FILE_SUMMARY\n\nCode diff:\n$DIFF"
+          else
+            GEMINI_PROMPT="You are writing a changelog for a Minecraft server Discord called FleaMC. You will be given developer release notes for a Minecraft plugin update. Your job is to rewrite them as a short, exciting, player-friendly announcement that players can actually understand.\n\nRules:\n- Use plain language players understand — no Java, no class names, no technical terms\n- Use emojis\n- Maximum 8 bullet points\n- Focus on what players will actually notice or experience\n- Do not mention version numbers\n- Do not mention technical implementation details like class names or file names\n- End with one short hype line encouraging players to log on\n- If the changes are mostly bug fixes, say so in a fun way\n\nPlugin: $PLUGIN\n\nDeveloper release notes:\n$RELEASE_NOTES"
+          fi
+
           RESPONSE=$(curl -s \
             "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${{ secrets.GEMINI_API_KEY }}" \
             -H "Content-Type: application/json" \
             -d "$(jq -n \
-              --arg plugin "$PLUGIN" \
-              --arg version "$TAG" \
-              --arg filesummary "$FILE_SUMMARY" \
-              --arg diff "$DIFF" \
+              --arg prompt "$GEMINI_PROMPT" \
               '{
                 contents: [{
-                  parts: [{
-                    text: ("You are writing a changelog for a Minecraft server Discord called FleaMC. You will be given a git diff of Java source code changes between two versions of a Minecraft plugin. Your job is to figure out what changed from a PLAYER perspective and write a short, exciting, player-friendly announcement.\n\nRules:\n- Use plain language players understand — no Java, no class names, no technical terms\n- Use emojis\n- Maximum 8 bullet points\n- Focus on what players will actually notice or experience\n- Do not mention version numbers\n- End with one short hype line encouraging players to log on\n- If the changes are mostly bug fixes, say so in a fun way\n- If you cannot determine what changed from a player perspective, write a generic exciting update message\n\nPlugin: " + $plugin + " v" + $version + "\n\nFiles changed summary:\n" + $filesummary + "\n\nCode diff:\n" + $diff)
-                  }]
+                  parts: [{ text: $prompt }]
                 }],
                 generationConfig: {
                   maxOutputTokens: 500,
