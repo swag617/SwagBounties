@@ -57,7 +57,7 @@ public final class AdminCommand implements CommandExecutor, TabCompleter {
             "set-message",
             "claim-message",
             "set-message-anon",
-            "discord-webhook-url",
+            "discord-webhook-name",
             "discord-set-message",
             "discord-claim-message",
             "discord-expire-message"

@@ -44,3 +44,6 @@ Thumbs.db
 ### SwagBounties runtime data ###
 bounties.yml
 claims.yml
+
+# Claude AI settings — personal/local, never commit
+.claude/

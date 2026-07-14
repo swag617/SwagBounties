@@ -3,7 +3,6 @@ package com.swag.swagbounties.listener;
 import com.swag.swagbounties.SwagBounties;
 import com.swag.swagbounties.bounty.Bounty;
 import com.swag.swagbounties.bounty.BountyManager;
-import com.swag.swagbounties.discord.DiscordWebhook;
 // MIGRATED: Vault economy replaced by SwagAPI IEconomyService
 // import net.milkbowl.vault.economy.Economy;
 import org.bukkit.Bukkit;
@@ -124,16 +123,24 @@ public class BountyListener implements Listener {
                     killer.getUniqueId()));
         }
 
-        String webhookUrl = plugin.getConfig().getString("discord-webhook-url", "");
-        double threshold = plugin.getConfig().getDouble("discord-notify-threshold", 500.0);
-        if (!webhookUrl.isEmpty() && totalReward >= threshold) {
+        if (busService != null && plugin.getConfig().getBoolean("discord-enabled", true)
+                && totalReward >= plugin.getConfig().getDouble("discord-notify-threshold", 500.0)) {
             String discordMsg = plugin.getConfig()
                     .getString("discord-claim-message",
                             "⚔️ **%killer%** claimed a **$%amount%** bounty on **%target%**!")
                     .replace("%killer%", killer.getName())
                     .replace("%target%", victim.getName())
                     .replace("%amount%", String.format("%.2f", totalReward));
-            DiscordWebhook.sendEmbedAsync(webhookUrl, "⚔️ Bounty Claimed", discordMsg, DiscordWebhook.COLOR_CLAIM);
+
+            java.util.Map<String, Object> discordPayload = new java.util.HashMap<>();
+            discordPayload.put("webhook", plugin.getConfig().getString("discord-webhook-name", "bounties"));
+            discordPayload.put("title", "⚔️ Bounty Claimed");
+            discordPayload.put("description", discordMsg);
+            discordPayload.put("color", 0xE74C3C);
+            discordPayload.put("username", "SwagBounties");
+
+            busService.publish(new com.SwagDev.SwagAPI.events.SwagCrossPluginMessageEvent(
+                    "discordutils:notify", "SwagBounties", discordPayload, killer.getUniqueId()));
         }
     }
 }

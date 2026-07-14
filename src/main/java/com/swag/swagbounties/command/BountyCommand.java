@@ -3,7 +3,6 @@ package com.swag.swagbounties.command;
 import com.swag.swagbounties.SwagBounties;
 import com.swag.swagbounties.bounty.Bounty;
 import com.swag.swagbounties.bounty.BountyManager;
-import com.swag.swagbounties.discord.DiscordWebhook;
 // MIGRATED: Vault economy replaced by SwagAPI IEconomyService (see ecoService field below)
 // import net.milkbowl.vault.economy.Economy;
 import org.bukkit.Bukkit;
@@ -216,18 +215,29 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
             Bukkit.broadcastMessage(broadcast);
         }
 
-        // Discord notification for bounty set events — fires on a virtual thread so the
-        // HTTP call never blocks the main thread.
-        String webhookUrl = plugin.getConfig().getString("discord-webhook-url", "");
+        // Discord notification for bounty set events — published on SwagAPI's event bus;
+        // DiscordUtils (if installed with a matching webhooks.* entry) sends the actual
+        // webhook request, so there's no HTTP call to worry about blocking here.
+        com.SwagDev.SwagAPI.api.IEventBusService setBusService = plugin.getBusService();
         double threshold = plugin.getConfig().getDouble("discord-notify-threshold", 500.0);
-        if (!webhookUrl.isEmpty() && actualReward >= threshold) {
+        if (setBusService != null && plugin.getConfig().getBoolean("discord-enabled", true)
+                && actualReward >= threshold) {
             String discordTemplate = plugin.getConfig().getString("discord-set-message",
                     "💰 **%creator%** placed a **$%amount%** bounty on **%target%**!");
             String discordMsg = discordTemplate
                     .replace("%creator%", isAnon ? "Anonymous" : player.getName())
                     .replace("%target%", targetName)
                     .replace("%amount%", String.format("%.2f", actualReward));
-            DiscordWebhook.sendEmbedAsync(webhookUrl, "🎯 Bounty Placed", discordMsg, DiscordWebhook.COLOR_SET);
+
+            java.util.Map<String, Object> discordPayload = new java.util.HashMap<>();
+            discordPayload.put("webhook", plugin.getConfig().getString("discord-webhook-name", "bounties"));
+            discordPayload.put("title", "🎯 Bounty Placed");
+            discordPayload.put("description", discordMsg);
+            discordPayload.put("color", 0xE67E22);
+            discordPayload.put("username", "SwagBounties");
+
+            setBusService.publish(new com.SwagDev.SwagAPI.events.SwagCrossPluginMessageEvent(
+                    "discordutils:notify", "SwagBounties", discordPayload, player.getUniqueId()));
         }
 
         // Confirmation to the setter

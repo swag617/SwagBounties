@@ -2,7 +2,6 @@ package com.swag.swagbounties.task;
 
 import com.swag.swagbounties.SwagBounties;
 import com.swag.swagbounties.bounty.Bounty;
-import com.swag.swagbounties.discord.DiscordWebhook;
 // MIGRATED: Vault economy replaced by SwagAPI IEconomyService
 // import net.milkbowl.vault.economy.Economy;
 import org.bukkit.Bukkit;
@@ -44,8 +43,10 @@ public final class ExpiryTask extends BukkitRunnable {
         double expiryRefundTax = plugin.getConfig().getDouble("expiry-refund-tax", 10.0);
         com.SwagDev.SwagAPI.api.IEconomyService ecoService = plugin.getEcoService();
         boolean ecoAvailable = ecoService != null && ecoService.isEnabled();
-        String webhookUrl = plugin.getConfig().getString("discord-webhook-url", "");
+        com.SwagDev.SwagAPI.api.IEventBusService busService = plugin.getBusService();
+        boolean discordEnabled = plugin.getConfig().getBoolean("discord-enabled", true);
         double threshold = plugin.getConfig().getDouble("discord-notify-threshold", 500.0);
+        String discordWebhookName = plugin.getConfig().getString("discord-webhook-name", "bounties");
 
         List<Bounty> snapshot = new ArrayList<>(plugin.getBountyManager().getAllBounties());
         int count = 0;
@@ -87,13 +88,22 @@ public final class ExpiryTask extends BukkitRunnable {
                 }
             }
 
-            if (!webhookUrl.isEmpty() && refund >= threshold) {
+            if (busService != null && discordEnabled && refund >= threshold) {
                 String discordMsg = plugin.getConfig()
                         .getString("discord-expire-message",
                                 "⏰ A **$%amount%** bounty on **%target%** has expired and was refunded.")
                         .replace("%amount%", String.format("%.2f", refund))
                         .replace("%target%", targetName);
-                DiscordWebhook.sendEmbedAsync(webhookUrl, "⌛ Bounty Expired", discordMsg, DiscordWebhook.COLOR_EXPIRE);
+
+                java.util.Map<String, Object> discordPayload = new java.util.HashMap<>();
+                discordPayload.put("webhook", discordWebhookName);
+                discordPayload.put("title", "⌛ Bounty Expired");
+                discordPayload.put("description", discordMsg);
+                discordPayload.put("color", 0x95A5A6);
+                discordPayload.put("username", "SwagBounties");
+
+                busService.publish(new com.SwagDev.SwagAPI.events.SwagCrossPluginMessageEvent(
+                        "discordutils:notify", "SwagBounties", discordPayload, null));
             }
 
             count++;

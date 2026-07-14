@@ -22,8 +22,11 @@ claim-message: "&c[SwagBounties] &e%killer% &fhas claimed a &a$%amount% &fbounty
 # Anonymous set message (creator hidden)
 set-message-anon: "&c[SwagBounties] &fAn anonymous player has placed a &a$%amount% &fbounty on &e%target%&f!"
 
-# Discord webhook URL for bounty events (leave empty to disable)
-discord-webhook-url: ""
+# Discord notifications — published on SwagAPI's event bus (discordutils:notify channel).
+# Requires DiscordUtils to be installed with a matching "webhooks.<discord-webhook-name>"
+# entry in ITS config.yml — no compile-time or reflection dependency on DiscordUtils here.
+discord-enabled: true
+discord-webhook-name: "bounties"
 
 # Minimum bounty reward to trigger a Discord notification (0 = always notify)
 discord-notify-threshold: 500.0
