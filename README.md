@@ -7,7 +7,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/Spigot-1.21.4-667eea?style=for-the-badge" alt="Spigot 1.21.4">
   <img src="https://img.shields.io/badge/Java-21-764ba2?style=for-the-badge&logo=openjdk&logoColor=white" alt="Java 21">
-  <img src="https://img.shields.io/badge/Vault-Economy-f0c060?style=for-the-badge" alt="Vault">
+  <img src="https://img.shields.io/badge/SwagAPI-Economy-f0c060?style=for-the-badge" alt="SwagAPI">
   <img src="https://img.shields.io/badge/License-MIT-5865F2?style=for-the-badge" alt="MIT">
 </p>
 
@@ -23,12 +23,14 @@ Place bounties on players, claim them on kill, browse them in a paginated GUI, a
 ## ✦ Features
 
 - **Place bounties** on any online or offline player with an optional anonymous flag
-- **Claim on kill** — reward paid to the killer via Vault on player death
+- **Stack bounties** — add to an existing bounty with `/bounty add` without creating a duplicate
+- **Claim on kill** — reward paid to the killer via SwagAPI's shared economy service on player death
 - **Paginated GUI** — `/bounties` opens a skull-based chest GUI with per-target bounty details
 - **Bounty expiry** — unclaimed bounties expire after a configurable number of days and refund the creator
 - **Placement tax** — configurable tax on placement and expiry refunds
+- **Top bounties** — `/bounty top` lists the most wanted players in chat
 - **Anonymous bounties** — hide your identity with `--anon`
-- **Discord webhooks** — bounty set, claim, and expiry events posted to a Discord channel
+- **Discord notifications** — bounty set, claim, and expiry events published on SwagAPI's event bus, delivered to Discord via DiscordUtils
 - **PlaceholderAPI** — `%swagbounties_*%` placeholders for scoreboards and other plugins
 - **Admin commands** — force-remove, wipe, inspect, and edit config live in-game
 - **Same-IP exploit prevention**
@@ -37,14 +39,15 @@ Place bounties on players, claim them on kill, browse them in a paginated GUI, a
 
 ## ✦ Installation
 
-1. Download `SwagBounties.jar` from [Releases](https://github.com/swag617/SwagBounties/releases)
-2. Drop it into your server's `plugins/` folder alongside Vault and a Vault economy provider (e.g. EssentialsX)
-3. Start the server once to generate `plugins/SwagBounties/config.yml`, then stop it
-4. Edit `config.yml` to set your desired min/max bounty, taxes, expiry days, and (optionally) a Discord webhook URL
-5. Start the server
+1. Install [SwagAPI](https://github.com/swag617/SwagAPI) — **required**, SwagBounties will not enable without it
+2. Download `SwagBounties.jar` from [Releases](https://github.com/swag617/SwagBounties/releases)
+3. Drop it into your server's `plugins/` folder
+4. Start the server once to generate `plugins/SwagBounties/config.yml`, then stop it
+5. Edit `config.yml` to set your desired min/max bounty, taxes, expiry days, and (optionally) Discord notifications
+6. Start the server
 
-> **Requirements:** Spigot / Paper 1.21.4, Java 21, Vault + an economy plugin
-> **Optional:** PlaceholderAPI for `%swagbounties_*%` placeholders
+> **Requirements:** Spigot / Paper 1.21.4, Java 21, SwagAPI *(hard dependency)*
+> **Optional:** PlaceholderAPI for `%swagbounties_*%` placeholders, DiscordUtils for Discord notifications
 
 ---
 
@@ -54,9 +57,9 @@ Place bounties on players, claim them on kill, browse them in a paginated GUI, a
 |---|---|---|
 | Java 21 | Yes | |
 | Spigot / Paper 1.21.4 | Yes | |
-| Vault | Yes | Economy withdrawals and deposits |
-| Economy plugin | Yes | EssentialsX, CMIEconomy, etc. |
+| SwagAPI | Yes | Hard dependency — provides the shared economy service (`IEconomyService`) and event bus used for Discord notifications; SwagBounties refuses to enable without it |
 | PlaceholderAPI | No | Enables `%swagbounties_*%` placeholders |
+| DiscordUtils | No | Needed only if you want Discord notifications — SwagBounties publishes to SwagAPI's event bus, which DiscordUtils relays to a configured webhook |
 
 ---
 
@@ -65,8 +68,10 @@ Place bounties on players, claim them on kill, browse them in a paginated GUI, a
 | Command | Description | Permission |
 |---|---|---|
 | `/bounty set <player> <amount> [--anon]` | Place a bounty on a player | none |
+| `/bounty add <player> <amount> [--anon]` | Add to an existing bounty on a player | none |
 | `/bounty remove <player>` | Cancel your bounty and receive a refund | none |
 | `/bounty list [player]` | List active bounties on yourself or another player | none |
+| `/bounty top` | List the most wanted players in chat | none |
 | `/bounty help` | Show command usage | none |
 | `/bounties` | Open the paginated bounty GUI | none |
 | `/bountyadmin config get <key>` | View a config value | `swagbounties.admin` |
@@ -113,7 +118,8 @@ Key config options in `plugins/SwagBounties/config.yml`:
 | `placement-tax` | `5.0` | % taken from bounty on placement |
 | `expiry-refund-tax` | `10.0` | % taken from refund on expiry |
 | `bounty-expiry-days` | `7` | Days until unclaimed bounty expires (0 = never) |
-| `discord-webhook-url` | `""` | Discord webhook URL (leave empty to disable) |
+| `discord-enabled` | `true` | Enable/disable Discord notifications via SwagAPI's event bus |
+| `discord-webhook-name` | `"bounties"` | Named webhook (in DiscordUtils' own config.yml) to route notifications to |
 | `discord-notify-threshold` | `500.0` | Min reward to trigger a Discord notification |
 
 ---

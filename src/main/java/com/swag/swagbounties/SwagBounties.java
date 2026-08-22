@@ -35,6 +35,7 @@ public final class SwagBounties extends JavaPlugin {
     private com.SwagDev.SwagAPI.api.IDatabaseService dbService;
     private com.SwagDev.SwagAPI.api.IEconomyService  ecoService;
     private com.SwagDev.SwagAPI.api.IEventBusService busService;
+    private com.SwagDev.SwagAPI.api.IPrefixService   prefixService;
 
     @Override
     public void onEnable() {
@@ -169,8 +170,72 @@ public final class SwagBounties extends JavaPlugin {
             getLogger().info("Hooked SwagAPI IEventBusService.");
         }
 
+        // ── Prefix override — lets an admin override our chat prefix from the panel ──
+        RegisteredServiceProvider<com.SwagDev.SwagAPI.api.IPrefixService> prefixProv =
+                sm.getRegistration(com.SwagDev.SwagAPI.api.IPrefixService.class);
+        if (prefixProv != null) {
+            prefixService = prefixProv.getProvider();
+            getLogger().info("Hooked SwagAPI IPrefixService.");
+        }
+
         getLogger().info("SwagAPI hook complete.");
         return true;
+    }
+
+    /**
+     * Resolves this plugin's self-identifying chat prefix, honoring any admin
+     * override configured via SwagAPI's {@code IPrefixService} (either a global
+     * override for every plugin, or one scoped to just "SwagBounties"). Falls
+     * back to the caller-supplied literal — this plugin's own historically
+     * hardcoded prefix — when no service is hooked or nothing is configured.
+     */
+    private static final java.util.Map<String, String> MM_TAG_TO_LEGACY = java.util.Map.ofEntries(
+            java.util.Map.entry("black", "§0"), java.util.Map.entry("dark_blue", "§1"), java.util.Map.entry("dark_green", "§2"),
+            java.util.Map.entry("dark_aqua", "§3"), java.util.Map.entry("dark_red", "§4"), java.util.Map.entry("dark_purple", "§5"),
+            java.util.Map.entry("gold", "§6"), java.util.Map.entry("gray", "§7"), java.util.Map.entry("grey", "§7"),
+            java.util.Map.entry("dark_gray", "§8"), java.util.Map.entry("dark_grey", "§8"), java.util.Map.entry("blue", "§9"),
+            java.util.Map.entry("green", "§a"), java.util.Map.entry("aqua", "§b"), java.util.Map.entry("red", "§c"),
+            java.util.Map.entry("light_purple", "§d"), java.util.Map.entry("yellow", "§e"), java.util.Map.entry("white", "§f"),
+            java.util.Map.entry("obfuscated", "§k"), java.util.Map.entry("bold", "§l"), java.util.Map.entry("strikethrough", "§m"),
+            java.util.Map.entry("underlined", "§n"), java.util.Map.entry("italic", "§o"), java.util.Map.entry("reset", "§r"));
+
+    /**
+     * Renders a stored prefix value from SwagAPI's IPrefixService — which may be MiniMessage
+     * tags (admin-typed via the web panel), legacy {@code &}/{@code §} codes (this plugin's own
+     * fallback constants), or a mix — into a legacy §-coded string safe for this plugin's
+     * ChatColor/sendMessage(String) pipeline. This plugin compiles against spigot-api (no
+     * adventure-text-minimessage on the classpath, unlike the Paper-API-based Swag plugins), so
+     * this is a lightweight regex-only converter rather than a real MiniMessage parse — no tag
+     * nesting support, but adequate for a short prefix string that realistically has at most a
+     * color tag and maybe one formatting tag. Named colors/formatting map to their legacy §
+     * code; {@code <#rrggbb>} hex tags use BungeeChat's ChatColor.of (already on spigot-api's
+     * classpath); any other/unrecognized tag is just stripped.
+     */
+    private static String toLegacyPrefix(String raw) {
+        if (raw == null || raw.isEmpty()) return raw;
+        String result = org.bukkit.ChatColor.translateAlternateColorCodes('&', raw);
+
+        java.util.regex.Matcher hex = java.util.regex.Pattern.compile("(?i)<#([0-9a-f]{6})>").matcher(result);
+        StringBuilder sb = new StringBuilder();
+        while (hex.find()) {
+            String legacyHex = net.md_5.bungee.api.ChatColor.of("#" + hex.group(1)).toString();
+            hex.appendReplacement(sb, java.util.regex.Matcher.quoteReplacement(legacyHex));
+        }
+        hex.appendTail(sb);
+        result = sb.toString();
+
+        java.util.regex.Matcher tag = java.util.regex.Pattern.compile("</?([a-zA-Z_]+)>").matcher(result);
+        StringBuilder sb2 = new StringBuilder();
+        while (tag.find()) {
+            String legacy = MM_TAG_TO_LEGACY.get(tag.group(1).toLowerCase());
+            tag.appendReplacement(sb2, legacy != null ? java.util.regex.Matcher.quoteReplacement(legacy) : "");
+        }
+        tag.appendTail(sb2);
+        return sb2.toString();
+    }
+
+    public String getPrefix(String fallback) {
+        return toLegacyPrefix(prefixService != null ? prefixService.getPrefix("SwagBounties", fallback) : fallback);
     }
 
     public static SwagBounties getInstance() {

@@ -4,8 +4,8 @@
 
 Check your console for errors. Common causes:
 
-- **Vault not found** — Install [Vault](https://www.spigotmc.org/resources/vault.34315/)
-- **No economy provider** — Install an economy plugin like [EssentialsX](https://essentialsx.net/)
+- **SwagAPI not found** — SwagBounties has a hard dependency on [SwagAPI](https://github.com/swag617/SwagAPI); install and enable it first
+- **SwagAPI's `IDatabaseService` not registered** — check SwagAPI's own console output for startup errors
 
 ## Can I place a bounty on an offline player?
 
@@ -29,4 +29,4 @@ Yes. Multiple players can place separate bounties on the same target. When that 
 
 ## How do I disable Discord notifications?
 
-Leave `discord-webhook-url` empty in `config.yml`.
+Set `discord-enabled: false` in `config.yml`.

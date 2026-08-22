@@ -75,11 +75,11 @@ public final class ExpiryTask extends BukkitRunnable {
                 if (onlineCreator != null) {
                     if (refunded) {
                         onlineCreator.sendMessage(ChatColor.translateAlternateColorCodes('&',
-                                "&c[SwagBounties] &fYour bounty on &e" + targetName
+                                plugin.getPrefix("&c[SwagBounties] ") + "&fYour bounty on &e" + targetName
                                 + " &fhas expired. &a$" + String.format("%.2f", refund) + " &frefunded."));
                     } else {
                         onlineCreator.sendMessage(ChatColor.translateAlternateColorCodes('&',
-                                "&c[SwagBounties] &fYour bounty on &e" + targetName
+                                plugin.getPrefix("&c[SwagBounties] ") + "&fYour bounty on &e" + targetName
                                 + " &fhas expired, but the refund failed. Please contact an admin."));
                     }
                 } else if (!refunded) {

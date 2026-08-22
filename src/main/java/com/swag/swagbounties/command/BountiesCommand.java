@@ -18,7 +18,12 @@ import org.bukkit.entity.Player;
  */
 public final class BountiesCommand implements CommandExecutor {
 
-    private static final String PREFIX = ChatColor.RED + "[SwagBounties] " + ChatColor.RESET;
+    private static final String PREFIX_FALLBACK = ChatColor.RED + "[SwagBounties] " + ChatColor.RESET;
+
+    /** Resolves the chat prefix fresh each call, honoring any SwagAPI admin override. */
+    private String prefix() {
+        return plugin.getPrefix(PREFIX_FALLBACK);
+    }
 
     private final SwagBounties plugin;
 
@@ -29,7 +34,7 @@ public final class BountiesCommand implements CommandExecutor {
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (!(sender instanceof Player player)) {
-            sender.sendMessage(PREFIX + ChatColor.RED + "Only players can open the bounties GUI.");
+            sender.sendMessage(prefix() + ChatColor.RED + "Only players can open the bounties GUI.");
             return true;
         }
 

@@ -1,6 +1,10 @@
 # Economy & Taxes
 
-SwagBounties uses Vault to handle all economy transactions.
+SwagBounties handles all economy transactions through **SwagAPI's shared `IEconomyService`**
+(hooked at startup — see `SwagBounties#hookSwagAPI()`), not a direct Vault dependency. SwagAPI is
+a hard dependency of SwagBounties; if SwagAPI's `IEconomyService` isn't registered, economy
+features (placing/claiming/refunding bounties) are disabled and a warning is logged, though the
+plugin itself still enables.
 
 ## Placement Tax
 

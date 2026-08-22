@@ -25,8 +25,13 @@ import java.util.UUID;
 
 public final class AdminCommand implements CommandExecutor, TabCompleter {
 
-    private static final String PREFIX =
+    private static final String PREFIX_FALLBACK =
             ChatColor.DARK_RED + "[SwagBounties Admin] " + ChatColor.RESET;
+
+    /** Resolves the chat prefix fresh each call, honoring any SwagAPI admin override. */
+    private String prefix() {
+        return plugin.getPrefix(PREFIX_FALLBACK);
+    }
 
     private static final DateTimeFormatter DATE_FORMAT =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(ZoneId.systemDefault());
@@ -138,7 +143,7 @@ public final class AdminCommand implements CommandExecutor, TabCompleter {
 
     private void handleRemove(CommandSender sender, String[] args) {
         if (args.length < 2) {
-            sender.sendMessage(PREFIX + ChatColor.RED + "Usage: /bountyadmin remove <target> [creator]");
+            sender.sendMessage(prefix() + ChatColor.RED + "Usage: /bountyadmin remove <target> [creator]");
             return;
         }
 
@@ -147,14 +152,14 @@ public final class AdminCommand implements CommandExecutor, TabCompleter {
 
         OfflinePlayer target = resolveOfflinePlayer(args[1]);
         if (target == null) {
-            sender.sendMessage(PREFIX + ChatColor.RED + "Player " + ChatColor.YELLOW + args[1]
+            sender.sendMessage(prefix() + ChatColor.RED + "Player " + ChatColor.YELLOW + args[1]
                     + ChatColor.RED + " has never joined this server.");
             return;
         }
 
         List<Bounty> bounties = new ArrayList<>(bm.getBounties(target.getUniqueId()));
         if (bounties.isEmpty()) {
-            sender.sendMessage(PREFIX + ChatColor.YELLOW + args[1]
+            sender.sendMessage(prefix() + ChatColor.YELLOW + args[1]
                     + ChatColor.RED + " has no active bounties.");
             return;
         }
@@ -163,14 +168,14 @@ public final class AdminCommand implements CommandExecutor, TabCompleter {
         if (args.length >= 3) {
             OfflinePlayer creator = resolveOfflinePlayer(args[2]);
             if (creator == null) {
-                sender.sendMessage(PREFIX + ChatColor.RED + "Creator " + ChatColor.YELLOW + args[2]
+                sender.sendMessage(prefix() + ChatColor.RED + "Creator " + ChatColor.YELLOW + args[2]
                         + ChatColor.RED + " has never joined this server.");
                 return;
             }
             final UUID creatorUUID = creator.getUniqueId();
             bounties.removeIf(b -> !b.getCreatorUUID().equals(creatorUUID));
             if (bounties.isEmpty()) {
-                sender.sendMessage(PREFIX + ChatColor.YELLOW + args[2]
+                sender.sendMessage(prefix() + ChatColor.YELLOW + args[2]
                         + ChatColor.RED + " has no bounty on " + ChatColor.YELLOW + args[1] + ChatColor.RED + ".");
                 return;
             }
@@ -194,11 +199,11 @@ public final class AdminCommand implements CommandExecutor, TabCompleter {
         plugin.rebuildBountiesGUI();
 
         String targetName = target.getName() != null ? target.getName() : args[1];
-        sender.sendMessage(PREFIX + ChatColor.GREEN + "Removed " + ChatColor.YELLOW + removed
+        sender.sendMessage(prefix() + ChatColor.GREEN + "Removed " + ChatColor.YELLOW + removed
                 + ChatColor.GREEN + " bounty/bounties on " + ChatColor.YELLOW + targetName
                 + ChatColor.GREEN + " and refunded creators.");
         if (refundFailures > 0) {
-            sender.sendMessage(PREFIX + ChatColor.RED + refundFailures + " refund(s) failed (economy unavailable).");
+            sender.sendMessage(prefix() + ChatColor.RED + refundFailures + " refund(s) failed (economy unavailable).");
         }
     }
 
@@ -209,7 +214,7 @@ public final class AdminCommand implements CommandExecutor, TabCompleter {
 
     private void handleClear(CommandSender sender, String[] args) {
         if (args.length < 2) {
-            sender.sendMessage(PREFIX + ChatColor.RED + "Usage: /bountyadmin clear <player>");
+            sender.sendMessage(prefix() + ChatColor.RED + "Usage: /bountyadmin clear <player>");
             return;
         }
 
@@ -218,14 +223,14 @@ public final class AdminCommand implements CommandExecutor, TabCompleter {
 
         OfflinePlayer target = resolveOfflinePlayer(args[1]);
         if (target == null) {
-            sender.sendMessage(PREFIX + ChatColor.RED + "Player " + ChatColor.YELLOW + args[1]
+            sender.sendMessage(prefix() + ChatColor.RED + "Player " + ChatColor.YELLOW + args[1]
                     + ChatColor.RED + " has never joined this server.");
             return;
         }
 
         List<Bounty> bounties = new ArrayList<>(bm.getBounties(target.getUniqueId()));
         if (bounties.isEmpty()) {
-            sender.sendMessage(PREFIX + ChatColor.YELLOW + (target.getName() != null ? target.getName() : args[1])
+            sender.sendMessage(prefix() + ChatColor.YELLOW + (target.getName() != null ? target.getName() : args[1])
                     + ChatColor.RED + " has no active bounties.");
             return;
         }
@@ -246,11 +251,11 @@ public final class AdminCommand implements CommandExecutor, TabCompleter {
         plugin.rebuildBountiesGUI();
 
         String targetName = target.getName() != null ? target.getName() : args[1];
-        sender.sendMessage(PREFIX + ChatColor.GREEN + "Cleared all " + ChatColor.YELLOW + bounties.size()
+        sender.sendMessage(prefix() + ChatColor.GREEN + "Cleared all " + ChatColor.YELLOW + bounties.size()
                 + ChatColor.GREEN + " bounty/bounties on " + ChatColor.YELLOW + targetName
                 + ChatColor.GREEN + " and refunded all creators.");
         if (refundFailures > 0) {
-            sender.sendMessage(PREFIX + ChatColor.RED + refundFailures + " refund(s) failed (economy unavailable).");
+            sender.sendMessage(prefix() + ChatColor.RED + refundFailures + " refund(s) failed (economy unavailable).");
         }
     }
 
@@ -265,7 +270,7 @@ public final class AdminCommand implements CommandExecutor, TabCompleter {
 
         List<Bounty> all = new ArrayList<>(bm.getAllBounties());
         if (all.isEmpty()) {
-            sender.sendMessage(PREFIX + ChatColor.YELLOW + "There are no active bounties to clear.");
+            sender.sendMessage(prefix() + ChatColor.YELLOW + "There are no active bounties to clear.");
             return;
         }
 
@@ -286,10 +291,10 @@ public final class AdminCommand implements CommandExecutor, TabCompleter {
         bm.saveToDisk();
         plugin.rebuildBountiesGUI();
 
-        sender.sendMessage(PREFIX + ChatColor.GREEN + "Cleared " + ChatColor.YELLOW + count
+        sender.sendMessage(prefix() + ChatColor.GREEN + "Cleared " + ChatColor.YELLOW + count
                 + ChatColor.GREEN + " bounty/bounties server-wide and refunded all creators.");
         if (refundFailures > 0) {
-            sender.sendMessage(PREFIX + ChatColor.RED + refundFailures + " refund(s) failed (economy unavailable).");
+            sender.sendMessage(prefix() + ChatColor.RED + refundFailures + " refund(s) failed (economy unavailable).");
         }
     }
 
@@ -300,13 +305,13 @@ public final class AdminCommand implements CommandExecutor, TabCompleter {
 
     private void handleGive(CommandSender sender, String[] args) {
         if (args.length < 3) {
-            sender.sendMessage(PREFIX + ChatColor.RED + "Usage: /bountyadmin give <target> <amount> [--anon]");
+            sender.sendMessage(prefix() + ChatColor.RED + "Usage: /bountyadmin give <target> <amount> [--anon]");
             return;
         }
 
         OfflinePlayer target = resolveOfflinePlayer(args[1]);
         if (target == null) {
-            sender.sendMessage(PREFIX + ChatColor.RED + "Player " + ChatColor.YELLOW + args[1]
+            sender.sendMessage(prefix() + ChatColor.RED + "Player " + ChatColor.YELLOW + args[1]
                     + ChatColor.RED + " has never joined this server.");
             return;
         }
@@ -315,13 +320,13 @@ public final class AdminCommand implements CommandExecutor, TabCompleter {
         try {
             amount = BountyCommand.parseAmount(args[2]);
         } catch (NumberFormatException e) {
-            sender.sendMessage(PREFIX + ChatColor.RED + "Invalid amount: " + ChatColor.YELLOW + args[2]
+            sender.sendMessage(prefix() + ChatColor.RED + "Invalid amount: " + ChatColor.YELLOW + args[2]
                     + ChatColor.RED + ". Use a number or shorthand like 5k / 2m.");
             return;
         }
 
         if (!Double.isFinite(amount) || amount <= 0) {
-            sender.sendMessage(PREFIX + ChatColor.RED + "Amount must be a positive number.");
+            sender.sendMessage(prefix() + ChatColor.RED + "Amount must be a positive number.");
             return;
         }
 
@@ -334,14 +339,14 @@ public final class AdminCommand implements CommandExecutor, TabCompleter {
         plugin.rebuildBountiesGUI();
 
         String targetName = target.getName() != null ? target.getName() : args[1];
-        sender.sendMessage(PREFIX + ChatColor.GREEN + "Placed a " + ChatColor.YELLOW
+        sender.sendMessage(prefix() + ChatColor.GREEN + "Placed a " + ChatColor.YELLOW
                 + String.format("$%.2f", amount) + ChatColor.GREEN + " admin bounty on "
                 + ChatColor.YELLOW + targetName + ChatColor.GREEN + ".");
 
         // Notify target if online
         Player onlineTarget = Bukkit.getPlayer(target.getUniqueId());
         if (onlineTarget != null) {
-            onlineTarget.sendMessage(ChatColor.DARK_RED + "[SwagBounties] "
+            onlineTarget.sendMessage(plugin.getPrefix(ChatColor.DARK_RED + "[SwagBounties] ")
                     + ChatColor.WHITE + "An admin has placed a "
                     + ChatColor.GREEN + String.format("$%.2f", amount)
                     + ChatColor.WHITE + " bounty on you!");
@@ -355,13 +360,13 @@ public final class AdminCommand implements CommandExecutor, TabCompleter {
 
     private void handleInspect(CommandSender sender, String[] args) {
         if (args.length < 2) {
-            sender.sendMessage(PREFIX + ChatColor.RED + "Usage: /bountyadmin inspect <player>");
+            sender.sendMessage(prefix() + ChatColor.RED + "Usage: /bountyadmin inspect <player>");
             return;
         }
 
         OfflinePlayer target = resolveOfflinePlayer(args[1]);
         if (target == null) {
-            sender.sendMessage(PREFIX + ChatColor.RED + "Player " + ChatColor.YELLOW + args[1]
+            sender.sendMessage(prefix() + ChatColor.RED + "Player " + ChatColor.YELLOW + args[1]
                     + ChatColor.RED + " has never joined this server.");
             return;
         }
@@ -370,7 +375,7 @@ public final class AdminCommand implements CommandExecutor, TabCompleter {
         String targetName = target.getName() != null ? target.getName() : args[1];
 
         if (bounties.isEmpty()) {
-            sender.sendMessage(PREFIX + ChatColor.YELLOW + targetName
+            sender.sendMessage(prefix() + ChatColor.YELLOW + targetName
                     + ChatColor.GRAY + " has no active bounties.");
             return;
         }
@@ -404,18 +409,18 @@ public final class AdminCommand implements CommandExecutor, TabCompleter {
             try {
                 limit = Integer.parseInt(args[1]);
             } catch (NumberFormatException e) {
-                sender.sendMessage(PREFIX + ChatColor.RED + "Invalid number: " + ChatColor.YELLOW + args[1] + ChatColor.RED + ".");
+                sender.sendMessage(prefix() + ChatColor.RED + "Invalid number: " + ChatColor.YELLOW + args[1] + ChatColor.RED + ".");
                 return;
             }
             if (limit <= 0) {
-                sender.sendMessage(PREFIX + ChatColor.RED + "Limit must be a positive number.");
+                sender.sendMessage(prefix() + ChatColor.RED + "Limit must be a positive number.");
                 return;
             }
         }
 
         List<ClaimTracker.Claim> claims = plugin.getClaimTracker().getRecentHistory(limit);
         if (claims.isEmpty()) {
-            sender.sendMessage(PREFIX + ChatColor.YELLOW + "No bounties have been claimed yet.");
+            sender.sendMessage(prefix() + ChatColor.YELLOW + "No bounties have been claimed yet.");
             return;
         }
 
@@ -438,20 +443,20 @@ public final class AdminCommand implements CommandExecutor, TabCompleter {
 
     private void handleGet(CommandSender sender, String[] args) {
         if (args.length < 3) {
-            sender.sendMessage(PREFIX + ChatColor.RED + "Usage: /bountyadmin config get <key>");
+            sender.sendMessage(prefix() + ChatColor.RED + "Usage: /bountyadmin config get <key>");
             return;
         }
 
         String key = args[2];
 
         if (!ALL_KEYS.contains(key)) {
-            sender.sendMessage(PREFIX + ChatColor.RED + "Unknown config key: "
+            sender.sendMessage(prefix() + ChatColor.RED + "Unknown config key: "
                     + ChatColor.YELLOW + key + ChatColor.RED + ".");
             return;
         }
 
         Object value = plugin.getConfig().get(key);
-        sender.sendMessage(PREFIX + ChatColor.YELLOW + key
+        sender.sendMessage(prefix() + ChatColor.YELLOW + key
                 + ChatColor.WHITE + " = "
                 + ChatColor.GREEN + value);
     }
@@ -462,7 +467,7 @@ public final class AdminCommand implements CommandExecutor, TabCompleter {
 
     private void handleSet(CommandSender sender, String[] args) {
         if (args.length < 4) {
-            sender.sendMessage(PREFIX + ChatColor.RED
+            sender.sendMessage(prefix() + ChatColor.RED
                     + "Usage: /bountyadmin config set <key> <value>");
             return;
         }
@@ -470,7 +475,7 @@ public final class AdminCommand implements CommandExecutor, TabCompleter {
         String key = args[2];
 
         if (!ALL_KEYS.contains(key)) {
-            sender.sendMessage(PREFIX + ChatColor.RED + "Unknown config key: "
+            sender.sendMessage(prefix() + ChatColor.RED + "Unknown config key: "
                     + ChatColor.YELLOW + key + ChatColor.RED
                     + ". Use /bountyadmin config list to see valid keys.");
             return;
@@ -485,7 +490,7 @@ public final class AdminCommand implements CommandExecutor, TabCompleter {
             String value = sb.toString();
             plugin.getConfig().set(key, value);
             plugin.saveConfig();
-            sender.sendMessage(PREFIX + ChatColor.GREEN + "Set "
+            sender.sendMessage(prefix() + ChatColor.GREEN + "Set "
                     + ChatColor.YELLOW + key
                     + ChatColor.GREEN + " to "
                     + ChatColor.WHITE + value
@@ -499,7 +504,7 @@ public final class AdminCommand implements CommandExecutor, TabCompleter {
             try {
                 value = Double.parseDouble(args[3]);
             } catch (NumberFormatException e) {
-                sender.sendMessage(PREFIX + ChatColor.RED + "Invalid number: "
+                sender.sendMessage(prefix() + ChatColor.RED + "Invalid number: "
                         + ChatColor.YELLOW + args[3]
                         + ChatColor.RED + ". Please enter a valid decimal number.");
                 return;
@@ -507,19 +512,19 @@ public final class AdminCommand implements CommandExecutor, TabCompleter {
 
             String error = validateDouble(key, value);
             if (error != null) {
-                sender.sendMessage(PREFIX + ChatColor.RED + error);
+                sender.sendMessage(prefix() + ChatColor.RED + error);
                 return;
             }
 
             error = validateMinMaxBounty(key, value);
             if (error != null) {
-                sender.sendMessage(PREFIX + ChatColor.RED + error);
+                sender.sendMessage(prefix() + ChatColor.RED + error);
                 return;
             }
 
             plugin.getConfig().set(key, value);
             plugin.saveConfig();
-            sender.sendMessage(PREFIX + ChatColor.GREEN + "Set "
+            sender.sendMessage(prefix() + ChatColor.GREEN + "Set "
                     + ChatColor.YELLOW + key
                     + ChatColor.GREEN + " to "
                     + ChatColor.WHITE + value
@@ -533,7 +538,7 @@ public final class AdminCommand implements CommandExecutor, TabCompleter {
             try {
                 value = Integer.parseInt(args[3]);
             } catch (NumberFormatException e) {
-                sender.sendMessage(PREFIX + ChatColor.RED + "Invalid integer: "
+                sender.sendMessage(prefix() + ChatColor.RED + "Invalid integer: "
                         + ChatColor.YELLOW + args[3]
                         + ChatColor.RED + ". Please enter a whole number.");
                 return;
@@ -541,13 +546,13 @@ public final class AdminCommand implements CommandExecutor, TabCompleter {
 
             String error = validateInt(key, value);
             if (error != null) {
-                sender.sendMessage(PREFIX + ChatColor.RED + error);
+                sender.sendMessage(prefix() + ChatColor.RED + error);
                 return;
             }
 
             plugin.getConfig().set(key, value);
             plugin.saveConfig();
-            sender.sendMessage(PREFIX + ChatColor.GREEN + "Set "
+            sender.sendMessage(prefix() + ChatColor.GREEN + "Set "
                     + ChatColor.YELLOW + key
                     + ChatColor.GREEN + " to "
                     + ChatColor.WHITE + value
@@ -575,7 +580,7 @@ public final class AdminCommand implements CommandExecutor, TabCompleter {
 
     private void handleReset(CommandSender sender) {
         plugin.reloadConfig();
-        sender.sendMessage(PREFIX + ChatColor.GREEN + "Config reloaded from disk.");
+        sender.sendMessage(prefix() + ChatColor.GREEN + "Config reloaded from disk.");
     }
 
     // -------------------------------------------------------------------------

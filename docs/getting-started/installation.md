@@ -8,8 +8,8 @@ Download `SwagBounties.jar` from [GitHub Releases](https://github.com/swag617/Sw
 
 Drop `SwagBounties.jar` into your server's `plugins/` folder alongside:
 
-- **Vault** — economy abstraction layer
-- An economy provider (e.g. EssentialsX, CMIEconomy)
+- **[SwagAPI](https://github.com/swag617/SwagAPI)** — required (hard dependency). SwagBounties will not enable without it; economy transactions go through SwagAPI's shared `IEconomyService`.
+- **[DiscordUtils](https://github.com/swag617/DiscordUtils)** — optional, only needed if you want Discord notifications (see [Discord Webhooks](../configuration/discord.md)).
 
 ## 3. Generate config
 

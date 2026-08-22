@@ -27,7 +27,12 @@ import java.util.UUID;
 
 public final class BountyCommand implements CommandExecutor, TabCompleter {
 
-    private static final String PREFIX = ChatColor.RED + "[SwagBounties] " + ChatColor.RESET;
+    private static final String PREFIX_FALLBACK = ChatColor.RED + "[SwagBounties] " + ChatColor.RESET;
+
+    /** Resolves the chat prefix fresh each call, honoring any SwagAPI admin override. */
+    private String prefix() {
+        return plugin.getPrefix(PREFIX_FALLBACK);
+    }
     private static final DateTimeFormatter DATE_FORMAT =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(ZoneId.systemDefault());
 
@@ -53,7 +58,7 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
     /** Returns {@code true} and notifies the sender if economy is currently unavailable. */
     private boolean economyUnavailable(CommandSender sender) {
         if (ecoService == null || !ecoService.isEnabled()) {
-            sender.sendMessage(PREFIX + ChatColor.RED + "Economy is currently unavailable. Please try again later.");
+            sender.sendMessage(prefix() + ChatColor.RED + "Economy is currently unavailable. Please try again later.");
             return true;
         }
         return false;
@@ -78,7 +83,7 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
             case "top"    -> handleTop(sender);
             case "help"   -> sendHelp(sender);
             default       -> {
-                sender.sendMessage(PREFIX + ChatColor.RED + "Unknown sub-command. Use "
+                sender.sendMessage(prefix() + ChatColor.RED + "Unknown sub-command. Use "
                         + ChatColor.YELLOW + "/" + label + " help" + ChatColor.RED + " for usage.");
             }
         }
@@ -106,12 +111,12 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
 
     private void handleSet(CommandSender sender, String[] args) {
         if (!(sender instanceof Player player)) {
-            sender.sendMessage(PREFIX + ChatColor.RED + "Only players can set bounties.");
+            sender.sendMessage(prefix() + ChatColor.RED + "Only players can set bounties.");
             return;
         }
 
         if (args.length < 3) {
-            sender.sendMessage(PREFIX + ChatColor.RED + "Usage: /bounty set <player> <amount> [--anon]");
+            sender.sendMessage(prefix() + ChatColor.RED + "Usage: /bounty set <player> <amount> [--anon]");
             return;
         }
 
@@ -124,7 +129,7 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
             @SuppressWarnings("deprecation")
             org.bukkit.OfflinePlayer op = Bukkit.getOfflinePlayer(args[1]);
             if (!op.hasPlayedBefore() && !op.isOnline()) {
-                player.sendMessage(PREFIX + ChatColor.RED + "Player " + ChatColor.YELLOW + args[1]
+                player.sendMessage(prefix() + ChatColor.RED + "Player " + ChatColor.YELLOW + args[1]
                         + ChatColor.RED + " has never joined this server.");
                 return;
             }
@@ -132,7 +137,7 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
         }
 
         if (target.getUniqueId().equals(player.getUniqueId())) {
-            player.sendMessage(PREFIX + ChatColor.RED + "You cannot place a bounty on yourself.");
+            player.sendMessage(prefix() + ChatColor.RED + "You cannot place a bounty on yourself.");
             return;
         }
 
@@ -144,13 +149,13 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
         try {
             amount = parseAmount(args[2]);
         } catch (NumberFormatException e) {
-            player.sendMessage(PREFIX + ChatColor.RED + "Invalid amount: " + ChatColor.YELLOW + args[2]
+            player.sendMessage(prefix() + ChatColor.RED + "Invalid amount: " + ChatColor.YELLOW + args[2]
                     + ChatColor.RED + ". Use a number or shorthand like 5k / 2m.");
             return;
         }
 
         if (!Double.isFinite(amount) || amount <= 0) {
-            player.sendMessage(PREFIX + ChatColor.RED + "The bounty amount must be a positive number.");
+            player.sendMessage(prefix() + ChatColor.RED + "The bounty amount must be a positive number.");
             return;
         }
 
@@ -159,13 +164,13 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
         double maxBounty = plugin.getConfig().getDouble("max-bounty", 0.0);
 
         if (amount < minBounty) {
-            player.sendMessage(PREFIX + ChatColor.RED + "The minimum bounty amount is "
+            player.sendMessage(prefix() + ChatColor.RED + "The minimum bounty amount is "
                     + ChatColor.GREEN + String.format("$%.2f", minBounty) + ChatColor.RED + ".");
             return;
         }
 
         if (maxBounty > 0 && amount > maxBounty) {
-            player.sendMessage(PREFIX + ChatColor.RED + "The maximum bounty amount is "
+            player.sendMessage(prefix() + ChatColor.RED + "The maximum bounty amount is "
                     + ChatColor.GREEN + String.format("$%.2f", maxBounty) + ChatColor.RED + ".");
             return;
         }
@@ -179,7 +184,7 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
         double actualReward = amount - taxedAmount;
 
         if (actualReward <= 0) {
-            player.sendMessage(PREFIX + ChatColor.RED
+            player.sendMessage(prefix() + ChatColor.RED
                     + "The configured placement tax leaves no reward after tax. Contact an admin.");
             return;
         }
@@ -188,7 +193,7 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
         if (economyUnavailable(player)) return;
 
         if (!ecoService.has(player, amount)) {
-            player.sendMessage(PREFIX + ChatColor.RED + "You do not have enough money. You need "
+            player.sendMessage(prefix() + ChatColor.RED + "You do not have enough money. You need "
                     + ChatColor.GREEN + String.format("$%.2f", amount) + ChatColor.RED + ".");
             return;
         }
@@ -196,7 +201,7 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
         String targetName = target.getName() != null ? target.getName() : args[1];
 
         if (!ecoService.withdraw(player, amount)) {
-            player.sendMessage(PREFIX + ChatColor.RED + "Transaction failed. Please try again.");
+            player.sendMessage(prefix() + ChatColor.RED + "Transaction failed. Please try again.");
             return;
         }
         bountyManager.addBounty(new Bounty(target.getUniqueId(), player.getUniqueId(), actualReward, isAnon));
@@ -241,7 +246,7 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
         }
 
         // Confirmation to the setter
-        player.sendMessage(PREFIX + ChatColor.GREEN + "Bounty placed on "
+        player.sendMessage(prefix() + ChatColor.GREEN + "Bounty placed on "
                 + ChatColor.YELLOW + targetName
                 + ChatColor.GREEN + "! Net reward after tax: "
                 + ChatColor.YELLOW + String.format("$%.2f", actualReward)
@@ -256,12 +261,12 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
 
     private void handleRemove(CommandSender sender, String[] args) {
         if (!(sender instanceof Player player)) {
-            sender.sendMessage(PREFIX + ChatColor.RED + "Only players can remove bounties.");
+            sender.sendMessage(prefix() + ChatColor.RED + "Only players can remove bounties.");
             return;
         }
 
         if (args.length < 2) {
-            sender.sendMessage(PREFIX + ChatColor.RED + "Usage: /bounty remove <player>");
+            sender.sendMessage(prefix() + ChatColor.RED + "Usage: /bounty remove <player>");
             return;
         }
 
@@ -301,24 +306,24 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
                     SwagBounties.getInstance().rebuildBountiesGUI();
                     stampCooldown(player);
                     if (refunded) {
-                        player.sendMessage(PREFIX + ChatColor.GREEN + "Your bounty on "
+                        player.sendMessage(prefix() + ChatColor.GREEN + "Your bounty on "
                                 + ChatColor.YELLOW + targetName
                                 + ChatColor.GREEN + " has been removed. "
                                 + ChatColor.YELLOW + String.format("$%.2f", refund)
                                 + ChatColor.GREEN + " refunded.");
                     } else {
-                        player.sendMessage(PREFIX + ChatColor.YELLOW + "Your bounty on "
+                        player.sendMessage(prefix() + ChatColor.YELLOW + "Your bounty on "
                                 + targetName + ChatColor.RED
                                 + " has been removed, but the refund failed. Please contact an admin.");
                     }
                 } else {
-                    player.sendMessage(PREFIX + ChatColor.RED
+                    player.sendMessage(prefix() + ChatColor.RED
                             + "Failed to remove the bounty (concurrent modification). Please try again.");
                 }
                 return;
             }
         }
-        player.sendMessage(PREFIX + ChatColor.RED + "You have no bounty on "
+        player.sendMessage(prefix() + ChatColor.RED + "You have no bounty on "
                 + ChatColor.YELLOW + targetName + ChatColor.RED + ".");
     }
 
@@ -337,7 +342,7 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
         }
 
         if (match == null) {
-            player.sendMessage(PREFIX + ChatColor.RED + "You have no bounty on "
+            player.sendMessage(prefix() + ChatColor.RED + "You have no bounty on "
                     + ChatColor.YELLOW + targetDisplayName + ChatColor.RED + ".");
             return;
         }
@@ -351,19 +356,19 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
             SwagBounties.getInstance().rebuildBountiesGUI();
             stampCooldown(player);
             if (refunded) {
-                player.sendMessage(PREFIX + ChatColor.GREEN + "Your bounty on "
+                player.sendMessage(prefix() + ChatColor.GREEN + "Your bounty on "
                         + ChatColor.YELLOW + targetDisplayName
                         + ChatColor.GREEN + " has been removed. "
                         + ChatColor.YELLOW + String.format("$%.2f", refund)
                         + ChatColor.GREEN + " refunded.");
             } else {
-                player.sendMessage(PREFIX + ChatColor.YELLOW + "Your bounty on "
+                player.sendMessage(prefix() + ChatColor.YELLOW + "Your bounty on "
                         + targetDisplayName + ChatColor.RED
                         + " has been removed, but the refund failed. Please contact an admin.");
             }
         } else {
             // Race condition — the bounty was removed between our read and our write
-            player.sendMessage(PREFIX + ChatColor.RED
+            player.sendMessage(prefix() + ChatColor.RED
                     + "Failed to remove the bounty (concurrent modification). Please try again.");
         }
     }
@@ -374,12 +379,12 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
 
     private void handleAdd(CommandSender sender, String[] args) {
         if (!(sender instanceof Player player)) {
-            sender.sendMessage(PREFIX + ChatColor.RED + "Only players can add to bounties.");
+            sender.sendMessage(prefix() + ChatColor.RED + "Only players can add to bounties.");
             return;
         }
 
         if (args.length < 3) {
-            sender.sendMessage(PREFIX + ChatColor.RED + "Usage: /bounty add <player> <amount>");
+            sender.sendMessage(prefix() + ChatColor.RED + "Usage: /bounty add <player> <amount>");
             return;
         }
 
@@ -392,7 +397,7 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
             @SuppressWarnings("deprecation")
             org.bukkit.OfflinePlayer op = Bukkit.getOfflinePlayer(args[1]);
             if (!op.hasPlayedBefore() && !op.isOnline()) {
-                player.sendMessage(PREFIX + ChatColor.RED + "Player " + ChatColor.YELLOW + args[1]
+                player.sendMessage(prefix() + ChatColor.RED + "Player " + ChatColor.YELLOW + args[1]
                         + ChatColor.RED + " has never joined this server.");
                 return;
             }
@@ -400,7 +405,7 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
         }
 
         if (target.getUniqueId().equals(player.getUniqueId())) {
-            player.sendMessage(PREFIX + ChatColor.RED + "You cannot place a bounty on yourself.");
+            player.sendMessage(prefix() + ChatColor.RED + "You cannot place a bounty on yourself.");
             return;
         }
 
@@ -417,7 +422,7 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
         }
 
         if (existing == null) {
-            player.sendMessage(PREFIX + ChatColor.RED + "You have no existing bounty on "
+            player.sendMessage(prefix() + ChatColor.RED + "You have no existing bounty on "
                     + ChatColor.YELLOW + (target.getName() != null ? target.getName() : args[1])
                     + ChatColor.RED + ". Use " + ChatColor.YELLOW + "/bounty set"
                     + ChatColor.RED + " to place a new bounty.");
@@ -429,13 +434,13 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
         try {
             amount = parseAmount(args[2]);
         } catch (NumberFormatException e) {
-            player.sendMessage(PREFIX + ChatColor.RED + "Invalid amount: " + ChatColor.YELLOW + args[2]
+            player.sendMessage(prefix() + ChatColor.RED + "Invalid amount: " + ChatColor.YELLOW + args[2]
                     + ChatColor.RED + ". Use a number or shorthand like 5k / 2m.");
             return;
         }
 
         if (!Double.isFinite(amount) || amount <= 0) {
-            player.sendMessage(PREFIX + ChatColor.RED + "The amount to add must be a positive number.");
+            player.sendMessage(prefix() + ChatColor.RED + "The amount to add must be a positive number.");
             return;
         }
 
@@ -444,7 +449,7 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
         double maxBounty = plugin.getConfig().getDouble("max-bounty", 0.0);
 
         if (amount < minBounty) {
-            player.sendMessage(PREFIX + ChatColor.RED + "The minimum amount to add is "
+            player.sendMessage(prefix() + ChatColor.RED + "The minimum amount to add is "
                     + ChatColor.GREEN + String.format("$%.2f", minBounty) + ChatColor.RED + ".");
             return;
         }
@@ -455,7 +460,7 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
         double additionalReward = amount - taxedAmount;
 
         if (additionalReward <= 0) {
-            player.sendMessage(PREFIX + ChatColor.RED
+            player.sendMessage(prefix() + ChatColor.RED
                     + "The configured placement tax leaves no reward after tax. Contact an admin.");
             return;
         }
@@ -464,7 +469,7 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
         double newTotalReward = existing.getReward() + additionalReward;
 
         if (maxBounty > 0 && newTotalReward > maxBounty) {
-            player.sendMessage(PREFIX + ChatColor.RED + "Adding this amount would exceed the maximum bounty of "
+            player.sendMessage(prefix() + ChatColor.RED + "Adding this amount would exceed the maximum bounty of "
                     + ChatColor.GREEN + String.format("$%.2f", maxBounty) + ChatColor.RED + ".");
             return;
         }
@@ -473,14 +478,14 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
         if (economyUnavailable(player)) return;
 
         if (!ecoService.has(player, amount)) {
-            player.sendMessage(PREFIX + ChatColor.RED + "You do not have enough money. You need "
+            player.sendMessage(prefix() + ChatColor.RED + "You do not have enough money. You need "
                     + ChatColor.GREEN + String.format("$%.2f", amount) + ChatColor.RED + ".");
             return;
         }
 
         // Withdraw first so a failed transaction never touches the existing bounty.
         if (!ecoService.withdraw(player, amount)) {
-            player.sendMessage(PREFIX + ChatColor.RED + "Transaction failed. Please try again.");
+            player.sendMessage(prefix() + ChatColor.RED + "Transaction failed. Please try again.");
             return;
         }
 
@@ -491,7 +496,7 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
             // The bounty vanished between our read and this point (e.g. claimed by a kill).
             // Money was already withdrawn, so refund it rather than silently keeping it.
             ecoService.deposit(player, amount);
-            player.sendMessage(PREFIX + ChatColor.RED
+            player.sendMessage(prefix() + ChatColor.RED
                     + "Failed to update the bounty (it was claimed or removed). Your payment was refunded.");
             return;
         }
@@ -506,7 +511,7 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
         SwagBounties.getInstance().rebuildBountiesGUI();
         stampCooldown(player);
 
-        player.sendMessage(PREFIX + ChatColor.GREEN + "Added " + ChatColor.YELLOW
+        player.sendMessage(prefix() + ChatColor.GREEN + "Added " + ChatColor.YELLOW
                 + String.format("$%.2f", additionalReward)
                 + ChatColor.GREEN + " (after tax) to your bounty on "
                 + ChatColor.YELLOW + targetName
@@ -532,7 +537,7 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
         List<Bounty> all = bountyManager.getAllBounties();
 
         if (all.isEmpty()) {
-            sender.sendMessage(PREFIX + ChatColor.GRAY + "There are no active bounties.");
+            sender.sendMessage(prefix() + ChatColor.GRAY + "There are no active bounties.");
             return;
         }
 
@@ -567,7 +572,7 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
         if (args.length < 2) {
             // No argument — list bounties on the sender
             if (!(sender instanceof Player player)) {
-                sender.sendMessage(PREFIX + ChatColor.RED
+                sender.sendMessage(prefix() + ChatColor.RED
                         + "Console must specify a player: /bounty list <player>");
                 return;
             }
@@ -590,7 +595,7 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
                     }
                 }
                 if (!found) {
-                    sender.sendMessage(PREFIX + ChatColor.RED + "No bounties found for "
+                    sender.sendMessage(prefix() + ChatColor.RED + "No bounties found for "
                             + ChatColor.YELLOW + args[1] + ChatColor.RED + ".");
                 }
             }
@@ -600,7 +605,7 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
     private void listBountiesFor(CommandSender sender, java.util.UUID targetUUID, String targetName) {
         List<Bounty> bounties = bountyManager.getBounties(targetUUID);
         if (bounties.isEmpty()) {
-            sender.sendMessage(PREFIX + ChatColor.YELLOW + targetName
+            sender.sendMessage(prefix() + ChatColor.YELLOW + targetName
                     + ChatColor.GRAY + " has no active bounties.");
             return;
         }
@@ -697,7 +702,7 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
         long elapsed = (System.currentTimeMillis() - last) / 1000L;
         if (elapsed < cooldownSeconds) {
             long remaining = cooldownSeconds - elapsed;
-            player.sendMessage(PREFIX + ChatColor.RED + "You must wait "
+            player.sendMessage(prefix() + ChatColor.RED + "You must wait "
                     + ChatColor.YELLOW + remaining + ChatColor.RED
                     + " more second" + (remaining == 1 ? "" : "s")
                     + " before placing or removing a bounty.");

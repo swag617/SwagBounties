@@ -41,25 +41,26 @@ bounty-cooldown-seconds: 60
 ## Messages
 
 ```yaml
-bounty-set-message: "&a[SwagBounties] A bounty of &e${amount} &ahas been placed on &e{target}&a!"
-bounty-claim-message: "&a[SwagBounties] &e{killer} &aclaimed the bounty on &e{target} &afor &e${reward}&a!"
-bounty-anon-message: "&7[SwagBounties] A bounty has been placed on &e{target}&7."
+set-message: "&c[SwagBounties] &e%creator% &fhas placed a &a$%amount% &fbounty on &e%target%&f!"
+claim-message: "&c[SwagBounties] &e%killer% &fhas claimed a &a$%amount% &fbounty on &e%target%&f!"
+set-message-anon: "&c[SwagBounties] &fAn anonymous player has placed a &a$%amount% &fbounty on &e%target%&f!"
 ```
 
 Placeholders in messages:
-- `{target}` — target player name
-- `{killer}` — killer player name
-- `{amount}` — bounty amount placed
-- `{reward}` — total reward claimed
+- `%target%` — target player name
+- `%creator%` — bounty creator's name (used in `set-message`)
+- `%killer%` — killer player name
+- `%amount%` — bounty amount placed / claimed
 
 ## Discord
 
 ```yaml
-discord-webhook-url: ""
+discord-enabled: true
+discord-webhook-name: "bounties"
 discord-notify-threshold: 500.0
-discord-set-message: "💰 A bounty of **${amount}** has been placed on **{target}**!"
-discord-claim-message: "⚔️ **{killer}** claimed the bounty on **{target}** for **${reward}**!"
-discord-expire-message: "⏰ The bounty on **{target}** has expired."
+discord-set-message: "💰 **%creator%** placed a **$%amount%** bounty on **%target%**!"
+discord-claim-message: "⚔️ **%killer%** claimed a **$%amount%** bounty on **%target%**!"
+discord-expire-message: "⏰ A **$%amount%** bounty on **%target%** has expired and was refunded."
 ```
 
 See [Discord Webhooks](discord.md) for setup instructions.

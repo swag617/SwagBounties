@@ -42,7 +42,7 @@ public class BountyListener implements Listener {
         }
         int count = bountyManager.getBounties(player.getUniqueId()).size();
         player.sendMessage(ChatColor.translateAlternateColorCodes('&',
-                "&c[SwagBounties] &eWarning: &cYou have &e" + count
+                plugin.getPrefix("&c[SwagBounties] ") + "&eWarning: &cYou have &e" + count
                         + "&c active " + (count == 1 ? "bounty" : "bounties")
                         + " totalling &e$" + String.format("%.2f", total)
                         + "&c on your head!"));
@@ -77,8 +77,8 @@ public class BountyListener implements Listener {
 
         if (killerAddr != null && victimAddr != null
                 && killerAddr.getHostAddress().equals(victimAddr.getHostAddress())) {
-            killer.sendMessage(ChatColor.RED
-                    + "[SwagBounties] You cannot claim a bounty on a player from the same IP.");
+            killer.sendMessage(plugin.getPrefix(ChatColor.RED + "[SwagBounties] ")
+                    + "You cannot claim a bounty on a player from the same IP.");
             return;
         }
 
@@ -99,15 +99,15 @@ public class BountyListener implements Listener {
 
         String template = plugin.getConfig().getString(
                 "claim-message",
-                "&c[SwagBounties] &e%killer% &fhas claimed a &a$%amount% &fbounty on &e%target%&f!");
+                plugin.getPrefix("&c[SwagBounties] ") + "&e%killer% &fhas claimed a &a$%amount% &fbounty on &e%target%&f!");
         Bukkit.broadcastMessage(ChatColor.translateAlternateColorCodes('&', template
                 .replace("%killer%", killer.getName())
                 .replace("%target%", victim.getName())
                 .replace("%amount%", String.format("%.2f", totalReward))));
 
         if (!paid) {
-            killer.sendMessage(ChatColor.RED
-                    + "[SwagBounties] Your bounty payout could not be deposited automatically. Please contact an admin.");
+            killer.sendMessage(plugin.getPrefix(ChatColor.RED + "[SwagBounties] ")
+                    + "Your bounty payout could not be deposited automatically. Please contact an admin.");
         }
 
         com.SwagDev.SwagAPI.api.IEventBusService busService = plugin.getBusService();
