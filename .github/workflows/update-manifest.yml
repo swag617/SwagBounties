@@ -124,7 +124,8 @@ jobs:
                   parts: [{ text: $prompt }]
                 }],
                 generationConfig: {
-                  maxOutputTokens: 500,
+                  thinkingConfig: { thinkingBudget: 0 },
+                  maxOutputTokens: 2048,
                   temperature: 0.7
                 }
               }')")
